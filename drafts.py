@@ -1,0 +1,45 @@
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+import uuid
+from database import get_db
+from models import ContentDraft
+
+router = APIRouter()
+
+@router.get("/pending")
+async def list_pending_drafts(user_id: str, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(ContentDraft).where(
+            ContentDraft.user_id == uuid.UUID(user_id),
+            ContentDraft.status  == "review"
+        ).order_by(ContentDraft.created_at.desc())
+    )
+    drafts = result.scalars().all()
+    return [
+        {
+            "id":           str(d.id),
+            "channel_type": d.channel_type,
+            "title":        d.title,
+            "qc_passed":    d.qc_passed,
+            "has_content":  bool(d.body_md),
+        }
+        for d in drafts
+    ]
+
+@router.get("/{draft_id}")
+async def get_draft(draft_id: str, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(ContentDraft).where(ContentDraft.id == uuid.UUID(draft_id)))
+    draft  = result.scalar_one_or_none()
+    if not draft: raise HTTPException(status_code=404, detail="초안을 찾을 수 없습니다.")
+    return {"id": str(draft.id), "channel_type": draft.channel_type,
+            "body_md": draft.body_md, "status": draft.status,
+            "qc_results": draft.qc_results}
+
+@router.delete("/{draft_id}")
+async def delete_draft(draft_id: str, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(ContentDraft).where(ContentDraft.id == uuid.UUID(draft_id)))
+    draft  = result.scalar_one_or_none()
+    if not draft: raise HTTPException(status_code=404, detail="초안을 찾을 수 없습니다.")
+    await db.delete(draft)
+    return {"status": "deleted"}

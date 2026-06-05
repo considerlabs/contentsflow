@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ContentFlow — 설정</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Noto Sans KR', sans-serif;
+         background: #f5f5f5; color: #222; min-height: 100vh; }
+  .layout { max-width: 800px; margin: 0 auto; padding: 32px 24px; }
+  header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 28px; }
+  header h1 { font-size: 20px; font-weight: 700; }
+  header a { font-size: 13px; color: #2563eb; text-decoration: none; }
+
+  .tabs { display: flex; gap: 4px; background: #e8e8e8; border-radius: 10px; padding: 4px; margin-bottom: 24px; }
+  .tab { flex: 1; padding: 9px; text-align: center; border-radius: 7px; cursor: pointer;
+         font-size: 14px; font-weight: 500; color: #666; transition: all .2s; }
+  .tab.active { background: #fff; color: #222; font-weight: 600; box-shadow: 0 1px 4px rgba(0,0,0,.1); }
+
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  .card { background: #fff; border-radius: 12px; padding: 24px; margin-bottom: 16px;
+          box-shadow: 0 1px 6px rgba(0,0,0,.06); }
+  .card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .card-title { font-size: 15px; font-weight: 600; }
+
+  label { display: block; font-size: 12px; font-weight: 600; color: #555; margin-bottom: 5px; margin-top: 12px; }
+  label:first-of-type { margin-top: 0; }
+  input[type=text], input[type=password], textarea {
+    width: 100%; border: 1.5px solid #ddd; border-radius: 8px;
+    padding: 9px 12px; font-size: 14px; outline: none; transition: border-color .2s; resize: vertical; }
+  input:focus, textarea:focus { border-color: #2563eb; }
+  textarea { min-height: 200px; font-family: 'Courier New', monospace; font-size: 13px; }
+
+  .row { display: flex; gap: 8px; align-items: flex-end; }
+  .row input { flex: 1; }
+
+  button { padding: 8px 18px; border-radius: 8px; border: none; cursor: pointer;
+           font-size: 13px; font-weight: 600; transition: all .2s; }
+  .btn-primary { background: #2563eb; color: #fff; }
+  .btn-primary:hover { background: #1d4ed8; }
+  .btn-sm { padding: 6px 12px; font-size: 12px; }
+  .btn-ghost { background: #f0f0f0; color: #444; }
+  .btn-ghost:hover { background: #e0e0e0; }
+  .btn-danger { background: #fee2e2; color: #dc2626; }
+  .btn-danger:hover { background: #fecaca; }
+  .btn-success { background: #dcfce7; color: #16a34a; }
+
+  .color-picker { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+  .color-swatch { width: 24px; height: 24px; border-radius: 50%; cursor: pointer;
+                  border: 2px solid transparent; transition: border-color .2s; }
+  .color-swatch.selected { border-color: #222; }
+
+  .category-list { margin-top: 16px; }
+  .category-item { border: 1.5px solid #eee; border-radius: 10px; margin-bottom: 10px; overflow: hidden; }
+  .category-header { display: flex; align-items: center; gap: 10px; padding: 12px 16px;
+                     cursor: pointer; background: #fafafa; }
+  .category-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .category-name { flex: 1; font-weight: 600; font-size: 14px; }
+  .category-count { font-size: 12px; color: #888; }
+  .category-body { padding: 12px 16px; border-top: 1px solid #eee; display: none; }
+  .category-body.open { display: block; }
+  .keyword-list { margin-bottom: 10px; }
+  .keyword-tag { display: inline-flex; align-items: center; gap: 6px; background: #f0f4ff;
+                 border: 1px solid #c7d9ff; border-radius: 20px; padding: 4px 10px 4px 12px;
+                 font-size: 13px; margin: 3px; }
+  .keyword-tag button { background: none; border: none; color: #888; padding: 0; cursor: pointer;
+                        font-size: 14px; line-height: 1; }
+  .keyword-tag button:hover { color: #dc2626; }
+
+  .channel-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .channel-card { border: 1.5px solid #ddd; border-radius: 12px; padding: 18px 20px; }
+  .channel-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .channel-card-title { font-weight: 600; font-size: 14px; }
+  .badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
+  .badge-on  { background: #dcfce7; color: #16a34a; }
+  .badge-off { background: #f3f4f6; color: #9ca3af; }
+
+  .persona-tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+  .ptab { padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 13px;
+          font-weight: 600; background: #f0f0f0; color: #666; border: none; }
+  .ptab.active { background: #2563eb; color: #fff; }
+
+  .toast { position: fixed; bottom: 24px; right: 24px; background: #1e293b; color: #fff;
+           padding: 12px 20px; border-radius: 10px; font-size: 13px; font-weight: 500;
+           transform: translateY(80px); opacity: 0; transition: all .3s; z-index: 999; }
+  .toast.show { transform: translateY(0); opacity: 1; }
+
+  .empty { text-align: center; color: #aaa; font-size: 14px; padding: 20px 0; }
+</style>
+</head>
+<body>
+<div class="layout">
+  <header>
+    <h1>⚙️ ContentFlow 설정</h1>
+    <a href="/frontend/onboarding.html">← 온보딩으로</a>
+  </header>
+
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab(0)">카테고리·키워드</div>
+    <div class="tab"        onclick="switchTab(1)">발행 채널</div>
+    <div class="tab"        onclick="switchTab(2)">페르소나·스타일</div>
+  </div>
+
+  <!-- ── Tab 1: 카테고리·키워드 ─────────────────────────── -->
+  <div class="panel active" id="panel-0">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">카테고리 추가</span>
+      </div>
+      <div class="row">
+        <div style="flex:1">
+          <label>카테고리 이름</label>
+          <input type="text" id="cat-name" placeholder="AI 사이드잡" />
+        </div>
+        <button class="btn-primary" onclick="addCategory()">추가</button>
+      </div>
+      <div>
+        <label>색상</label>
+        <div class="color-picker" id="color-picker">
+          <div class="color-swatch selected" data-color="#2563eb" style="background:#2563eb" onclick="selectColor(this)"></div>
+          <div class="color-swatch" data-color="#16a34a" style="background:#16a34a" onclick="selectColor(this)"></div>
+          <div class="color-swatch" data-color="#dc2626" style="background:#dc2626" onclick="selectColor(this)"></div>
+          <div class="color-swatch" data-color="#d97706" style="background:#d97706" onclick="selectColor(this)"></div>
+          <div class="color-swatch" data-color="#7c3aed" style="background:#7c3aed" onclick="selectColor(this)"></div>
+          <div class="color-swatch" data-color="#db2777" style="background:#db2777" onclick="selectColor(this)"></div>
+        </div>
+      </div>
+    </div>
+    <div id="category-list" class="category-list"></div>
+  </div>
+
+  <!-- ── Tab 2: 발행 채널 ───────────────────────────────── -->
+  <div class="panel" id="panel-1">
+    <div class="channel-grid" id="channel-grid"></div>
+  </div>
+
+  <!-- ── Tab 3: 페르소나·스타일 ─────────────────────────── -->
+  <div class="panel" id="panel-2">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">페르소나·스타일 편집</span>
+        <button class="btn-primary btn-sm" onclick="savePersona()">저장</button>
+      </div>
+      <div class="persona-tabs">
+        <button class="ptab active" onclick="switchPtab('persona')">persona.md</button>
+        <button class="ptab"        onclick="switchPtab('style')">style.md</button>
+      </div>
+      <div id="persona-pane">
+        <label>페르소나 파일</label>
+        <textarea id="persona-md" placeholder="페르소나 파일 로딩 중…"></textarea>
+      </div>
+      <div id="style-pane" style="display:none">
+        <label>스타일 파일</label>
+        <textarea id="style-md" placeholder="스타일 파일 로딩 중…"></textarea>
+      </div>
+      <div style="margin-top:14px">
+        <button class="btn-ghost btn-sm" onclick="restartOnboarding()">온보딩 재시작</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API      = 'http://localhost:8000';
+const userId   = localStorage.getItem('cf_user_id');
+let   personaId = localStorage.getItem('cf_persona_id') || '';
+let   selectedColor = '#2563eb';
+let   categories = [];
+
+// ── 가드 ──────────────────────────────────────────────────
+if (!userId) {
+  alert('온보딩을 먼저 완료해 주세요.');
+  location.href = '/frontend/onboarding.html';
+}
+
+// ── 유틸 ──────────────────────────────────────────────────
+function v(id) { return document.getElementById(id)?.value.trim() || ''; }
+
+async function api(method, path, body) {
+  const res = await fetch(API + path, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `HTTP ${res.status}`);
+  }
+  return method === 'DELETE' ? {} : res.json();
+}
+
+function toast(msg, ok = true) {
+  const el = document.getElementById('toast');
+  el.textContent = ok ? '✓ ' + msg : '✗ ' + msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2400);
+}
+
+// ── 탭 전환 ───────────────────────────────────────────────
+function switchTab(i) {
+  document.querySelectorAll('.tab').forEach((t, j) => t.classList.toggle('active', i === j));
+  document.querySelectorAll('.panel').forEach((p, j) => p.classList.toggle('active', i === j));
+}
+
+// ── 색상 선택 ─────────────────────────────────────────────
+function selectColor(el) {
+  document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('selected'));
+  el.classList.add('selected');
+  selectedColor = el.dataset.color;
+}
+
+// ── Tab 1: 카테고리 ───────────────────────────────────────
+async function loadCategories() {
+  try {
+    categories = await api('GET', `/api/categories/?user_id=${userId}`);
+    renderCategories();
+  } catch(e) { console.error(e); }
+}
+
+function renderCategories() {
+  const el = document.getElementById('category-list');
+  if (!categories.length) { el.innerHTML = '<div class="empty">카테고리가 없어요. 위에서 추가해 주세요.</div>'; return; }
+  el.innerHTML = categories.map(cat => `
+    <div class="category-item" id="cat-${cat.id}">
+      <div class="category-header" onclick="toggleCat('${cat.id}')">
+        <div class="category-dot" style="background:${cat.color||'#999'}"></div>
+        <span class="category-name">${esc(cat.name)}</span>
+        <span class="category-count" id="cnt-${cat.id}"></span>
+        <button class="btn-danger btn-sm" onclick="event.stopPropagation();deleteCategory('${cat.id}')">삭제</button>
+      </div>
+      <div class="category-body" id="body-${cat.id}">
+        <div class="keyword-list" id="kw-${cat.id}"><div class="empty">키워드가 없어요.</div></div>
+        <div class="row" style="margin-top:8px">
+          <input type="text" id="kw-input-${cat.id}" placeholder="키워드 입력 후 Enter"
+                 onkeydown="if(event.key==='Enter')addKeyword('${cat.id}')" />
+          <button class="btn-primary btn-sm" onclick="addKeyword('${cat.id}')">추가</button>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+function toggleCat(id) {
+  const body = document.getElementById(`body-${id}`);
+  const wasOpen = body.classList.contains('open');
+  document.querySelectorAll('.category-body').forEach(b => b.classList.remove('open'));
+  if (!wasOpen) {
+    body.classList.add('open');
+    loadKeywords(id);
+  }
+}
+
+async function addCategory() {
+  const name = v('cat-name');
+  if (!name) return;
+  try {
+    const cat = await api('POST', '/api/categories/', { user_id: userId, name, color: selectedColor });
+    categories.push(cat);
+    document.getElementById('cat-name').value = '';
+    renderCategories();
+    toast('카테고리 추가됨');
+  } catch(e) { toast(e.message, false); }
+}
+
+async function deleteCategory(id) {
+  if (!confirm('카테고리와 키워드를 모두 삭제할까요?')) return;
+  try {
+    await api('DELETE', `/api/categories/${id}`);
+    categories = categories.filter(c => c.id !== id);
+    renderCategories();
+    toast('삭제됨');
+  } catch(e) { toast(e.message, false); }
+}
+
+async function loadKeywords(catId) {
+  try {
+    const kws = await api('GET', `/api/keywords/?user_id=${userId}&category_id=${catId}`);
+    const el = document.getElementById(`kw-${catId}`);
+    const cnt = document.getElementById(`cnt-${catId}`);
+    cnt.textContent = kws.length ? `${kws.length}개` : '';
+    if (!kws.length) { el.innerHTML = '<div class="empty">키워드가 없어요.</div>'; return; }
+    el.innerHTML = kws.map(k => `
+      <span class="keyword-tag">
+        ${esc(k.keyword)}
+        <button onclick="deleteKeyword('${k.id}','${catId}')">×</button>
+      </span>`).join('');
+  } catch(e) { console.error(e); }
+}
+
+async function addKeyword(catId) {
+  const input = document.getElementById(`kw-input-${catId}`);
+  const keyword = input.value.trim();
+  if (!keyword) return;
+  try {
+    await api('POST', '/api/keywords/', { user_id: userId, category_id: catId, keyword });
+    input.value = '';
+    loadKeywords(catId);
+    toast('키워드 추가됨');
+  } catch(e) { toast(e.message, false); }
+}
+
+async function deleteKeyword(kwId, catId) {
+  try {
+    await api('DELETE', `/api/keywords/${kwId}`);
+    loadKeywords(catId);
+    toast('삭제됨');
+  } catch(e) { toast(e.message, false); }
+}
+
+// ── Tab 2: 채널 ───────────────────────────────────────────
+const CHANNEL_INFO = {
+  blog:       { label: '📝 블로그',   desc: '티스토리 REST API', epLabel: 'API Endpoint URL', extraFields: [] },
+  newsletter: { label: '📧 뉴스레터', desc: '스티비 API',        epLabel: 'API Endpoint URL',
+                extraFields: [{ id: 'list_id', label: '리스트 ID' }] },
+  youtube:    { label: '🎬 유튜브',   desc: '구글 드라이브 저장', epLabel: '(불필요)',
+                extraFields: [{ id: 'folder_id', label: '드라이브 폴더 ID' }] },
+  shortform:  { label: '📱 숏폼',     desc: '노션 저장',          epLabel: '(불필요)', extraFields: [] },
+};
+
+async function loadChannels() {
+  let saved = [];
+  try { saved = await api('GET', `/api/channels/?user_id=${userId}`); } catch(e) {}
+  const savedMap = Object.fromEntries(saved.map(c => [c.channel_type, c]));
+
+  const grid = document.getElementById('channel-grid');
+  grid.innerHTML = Object.entries(CHANNEL_INFO).map(([type, info]) => {
+    const existing = savedMap[type];
+    const isOn = !!existing;
+    const extraInputs = info.extraFields.map(f =>
+      `<label>${f.label}</label>
+       <input type="text" id="extra-${type}-${f.id}" placeholder="${f.label}" />`
+    ).join('');
+    return `
+      <div class="channel-card">
+        <div class="channel-card-header">
+          <span class="channel-card-title">${info.label}</span>
+          <span class="badge ${isOn ? 'badge-on' : 'badge-off'}" id="badge-${type}">${isOn ? '연동됨' : '미연동'}</span>
+        </div>
+        <div style="font-size:12px;color:#888;margin-bottom:12px">${info.desc}</div>
+        ${info.epLabel !== '(불필요)' ? `<label>${info.epLabel}</label>
+        <input type="text" id="ep-${type}" placeholder="https://" />` : ''}
+        <label>API 키</label>
+        <input type="password" id="key-${type}" placeholder="••••••••" />
+        ${extraInputs}
+        <div style="margin-top:12px">
+          <button class="btn-primary btn-sm" onclick="saveChannel('${type}')">저장</button>
+          ${isOn ? `<button class="btn-ghost btn-sm" style="margin-left:6px" onclick="testChannel('${type}')">연결 테스트</button>` : ''}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+async function saveChannel(type) {
+  const info = CHANNEL_INFO[type];
+  const extra = {};
+  info.extraFields.forEach(f => { extra[f.id] = document.getElementById(`extra-${type}-${f.id}`)?.value.trim() || ''; });
+  try {
+    await api('POST', '/api/channels/', {
+      user_id:      userId,
+      channel_type: type,
+      channel_name: info.label.replace(/^.+ /, ''),
+      api_endpoint: document.getElementById(`ep-${type}`)?.value.trim() || null,
+      api_key_enc:  document.getElementById(`key-${type}`)?.value.trim() || null,
+      extra_config: Object.keys(extra).length ? extra : null,
+    });
+    document.getElementById(`badge-${type}`).className = 'badge badge-on';
+    document.getElementById(`badge-${type}`).textContent = '연동됨';
+    toast(`${info.label} 저장됨`);
+  } catch(e) { toast(e.message, false); }
+}
+
+async function testChannel(type) {
+  toast('연결 테스트는 준비 중이에요.', false);
+}
+
+// ── Tab 3: 페르소나 ───────────────────────────────────────
+async function loadPersona() {
+  try {
+    let url = `/api/personas/?user_id=${userId}`;
+    const data = await api('GET', url);
+    personaId = data.id;
+    localStorage.setItem('cf_persona_id', personaId);
+    document.getElementById('persona-md').value = data.persona_md;
+    document.getElementById('style-md').value   = data.style_md;
+  } catch(e) {
+    if (e.message.includes('404') || e.message.includes('없습니다')) {
+      document.getElementById('persona-md').placeholder = '온보딩을 완료하면 자동 생성돼요.';
+    }
+  }
+}
+
+function switchPtab(which) {
+  document.querySelectorAll('.ptab').forEach((b, i) =>
+    b.classList.toggle('active', (i === 0 && which === 'persona') || (i === 1 && which === 'style')));
+  document.getElementById('persona-pane').style.display = which === 'persona' ? 'block' : 'none';
+  document.getElementById('style-pane').style.display   = which === 'style'   ? 'block' : 'none';
+}
+
+async function savePersona() {
+  if (!personaId) { toast('페르소나 ID가 없어요. 온보딩을 완료해 주세요.', false); return; }
+  try {
+    await api('PUT', `/api/personas/${personaId}`, {
+      persona_md: document.getElementById('persona-md').value,
+      style_md:   document.getElementById('style-md').value,
+    });
+    toast('페르소나 저장됨');
+  } catch(e) { toast(e.message, false); }
+}
+
+function restartOnboarding() {
+  if (confirm('온보딩을 다시 시작할까요? 기존 설정은 유지돼요.')) {
+    location.href = '/frontend/onboarding.html';
+  }
+}
+
+// ── XSS 방지 ──────────────────────────────────────────────
+function esc(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── 초기 로드 ─────────────────────────────────────────────
+loadCategories();
+loadChannels();
+loadPersona();
+</script>
+</body>
+</html>
