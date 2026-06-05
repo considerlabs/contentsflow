@@ -10,10 +10,25 @@ OLLAMA_URL   = "http://localhost:11434/api/generate"
 OLLAMA_MODEL = "qwen3.6:35b-a3b"
 
 
+_SECTION_LABELS = ["마크다운", "html", "스크립트", "대본", "숏폼 대본", "유튜브 스크립트",
+                   "버전", "오프닝", "본론"]
+
 def _extract_title(body_md: str, fallback: str = "") -> str:
     for line in body_md.splitlines():
-        if line.startswith("# "):
-            return line[2:].strip()
+        if not line.startswith("# "):
+            continue
+        title = line[2:].strip()
+        # "제목: " 접두어 제거
+        if title.lower().startswith("제목:"):
+            title = title[3:].strip().lstrip(": ").strip()
+        # 이모지 접두어 제거
+        title = title.lstrip("📝📧🎬📱✦⏱️🎤#").strip()
+        # 섹션 레이블 건너뜀 (실제 제목 아님)
+        lower = title.lower()
+        if any(p in lower for p in _SECTION_LABELS):
+            continue
+        if len(title) > 5:
+            return title
     return fallback
 
 # ── 지식 베이스 로드 ──────────────────────────

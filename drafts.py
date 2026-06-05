@@ -27,6 +27,35 @@ async def list_pending_drafts(user_id: str, db: AsyncSession = Depends(get_db)):
         for d in drafts
     ]
 
+@router.get("/published")
+async def list_published_drafts(user_id: str, channel_type: str = None, db: AsyncSession = Depends(get_db)):
+    SHOW_STATUSES = ("review", "approved", "revision", "rejected", "published", "publish_failed")
+    q = select(ContentDraft).where(
+        ContentDraft.user_id == uuid.UUID(user_id),
+        ContentDraft.status.in_(SHOW_STATUSES),
+        ContentDraft.body_md != None,
+        ContentDraft.body_md != "",
+    )
+    if channel_type:
+        q = q.where(ContentDraft.channel_type == channel_type)
+    q = q.order_by(ContentDraft.created_at.desc())
+    result = await db.execute(q)
+    drafts = result.scalars().all()
+    return [
+        {
+            "id":            str(d.id),
+            "channel_type":  d.channel_type,
+            "title":         d.title,
+            "status":        d.status,
+            "created_at":    d.created_at.isoformat() if d.created_at else None,
+            "published_at":  d.published_at.isoformat() if d.published_at else None,
+            "published_url": d.published_url,
+            "qc_passed":     d.qc_passed,
+            "generation_ms": d.generation_ms,
+        }
+        for d in drafts
+    ]
+
 @router.get("/{draft_id}")
 async def get_draft(draft_id: str, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(ContentDraft).where(ContentDraft.id == uuid.UUID(draft_id)))

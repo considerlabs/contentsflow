@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ContentFlow — 콘텐츠 이력</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Noto Sans KR', sans-serif;
+         background: #f5f6fa; color: #222; min-height: 100vh;
+         display: flex; }
+
+  /* ── 사이드바 ── */
+  .sidebar { width: 220px; background: #1e2130; color: #aab; height: 100vh;
+             position: fixed; top: 0; left: 0;
+             display: flex; flex-direction: column; flex-shrink: 0; overflow-y: auto; }
+  .main { margin-left: 220px; }
+  .sidebar-logo { padding: 22px 20px 16px; font-size: 15px; font-weight: 800;
+                  color: #fff; letter-spacing: -.3px; border-bottom: 1px solid #2d3147; }
+  .sidebar-logo span { color: #5b8def; }
+  .sidebar-nav { padding: 12px 0; flex: 1; }
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 20px;
+              font-size: 13px; font-weight: 500; color: #8899bb; cursor: pointer;
+              border-left: 3px solid transparent; transition: all .15s; text-decoration: none; }
+  .nav-item:hover { background: #252840; color: #dde; }
+  .nav-item.active { background: #252840; color: #fff; border-left-color: #5b8def; }
+  .nav-icon { font-size: 15px; width: 18px; text-align: center; }
+  .sidebar-bottom { padding: 16px 20px; border-top: 1px solid #2d3147;
+                    font-size: 12px; color: #556; }
+
+  /* ── 메인 ── */
+  .main { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 100vh; }
+
+  /* ── 상단 헤더 ── */
+  .topbar { background: #fff; border-bottom: 1px solid #e8eaf0;
+            padding: 18px 32px; display: flex; align-items: flex-start; justify-content: space-between; }
+  .topbar-left h1 { font-size: 20px; font-weight: 800; color: #1a1d2e; }
+  .topbar-left p  { font-size: 13px; color: #8899aa; margin-top: 2px; }
+  .btn-add { background: #5b8def; color: #fff; border: none; padding: 9px 20px;
+             border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer;
+             transition: background .2s; text-decoration: none; display: inline-block; }
+  .btn-add:hover { background: #4070d4; }
+
+  /* ── 콘텐츠 영역 ── */
+  .content { padding: 28px 32px; flex: 1; }
+
+  /* ── 통계 카드 ── */
+  .stats { display: flex; gap: 16px; margin-bottom: 24px; }
+  .stat-card { background: #fff; border-radius: 10px; padding: 18px 24px;
+               border: 1px solid #e8eaf0; min-width: 120px; }
+  .stat-num   { font-size: 28px; font-weight: 800; color: #1a1d2e; line-height: 1; }
+  .stat-label { font-size: 12px; color: #8899aa; margin-top: 5px; }
+  .stat-card.s-review   .stat-num { color: #5b8def; }
+  .stat-card.s-done     .stat-num { color: #22c55e; }
+  .stat-card.s-revision .stat-num { color: #f59e0b; }
+
+  /* ── 검색 + 필터 ── */
+  .toolbar { display: flex; gap: 10px; margin-bottom: 16px; align-items: center; }
+  .search-wrap { position: relative; flex: 1; max-width: 360px; }
+  .search-wrap input { width: 100%; padding: 9px 12px 9px 36px; border: 1.5px solid #e0e3ef;
+                       border-radius: 8px; font-size: 13px; outline: none;
+                       background: #fff; transition: border-color .2s; }
+  .search-wrap input:focus { border-color: #5b8def; }
+  .search-icon { position: absolute; left: 11px; top: 50%; transform: translateY(-50%);
+                 color: #aab; font-size: 14px; pointer-events: none; }
+  .filter-btns { display: flex; gap: 6px; }
+  .filter-btn { padding: 7px 14px; border-radius: 20px; border: 1.5px solid #e0e3ef;
+                background: #fff; font-size: 12px; font-weight: 600; color: #667;
+                cursor: pointer; transition: all .15s; }
+  .filter-btn.active { border-color: #5b8def; background: #5b8def; color: #fff; }
+  .filter-btn:hover:not(.active) { border-color: #5b8def; color: #5b8def; }
+
+  /* ── 테이블 ── */
+  .table-wrap { background: #fff; border-radius: 12px; border: 1px solid #e8eaf0; overflow: hidden; }
+  table { width: 100%; border-collapse: collapse; }
+  thead th { padding: 11px 16px; text-align: left; font-size: 12px; font-weight: 700;
+             color: #8899aa; background: #f8f9fc; border-bottom: 1px solid #e8eaf0;
+             white-space: nowrap; }
+  tbody tr { border-bottom: 1px solid #f0f2f8; cursor: pointer; transition: background .1s; }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: #f5f7ff; }
+  tbody td { padding: 13px 16px; font-size: 13px; vertical-align: middle; }
+  .td-title { font-weight: 600; max-width: 320px; white-space: nowrap;
+              overflow: hidden; text-overflow: ellipsis; }
+  .td-meta  { color: #8899aa; font-size: 12px; }
+
+  /* ── 배지 ── */
+  .ch-badge { display: inline-block; font-size: 11px; font-weight: 700;
+              padding: 3px 9px; border-radius: 20px; }
+  .ch-badge.blog       { background: #ede9fe; color: #7c3aed; }
+  .ch-badge.newsletter { background: #fce7f3; color: #db2777; }
+  .ch-badge.youtube    { background: #fee2e2; color: #dc2626; }
+  .ch-badge.shortform  { background: #f3f4f6; color: #374151; }
+
+  .st-badge { display: inline-block; font-size: 11px; font-weight: 700;
+              padding: 3px 9px; border-radius: 20px; }
+  .st-review        { background: #dbeafe; color: #1d4ed8; }
+  .st-approved      { background: #dcfce7; color: #15803d; }
+  .st-published     { background: #dcfce7; color: #15803d; }
+  .st-revision      { background: #fef9c3; color: #854d0e; }
+  .st-rejected      { background: #fee2e2; color: #dc2626; }
+  .st-publish_failed{ background: #fee2e2; color: #dc2626; }
+
+  .qc-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; }
+  .qc-ok   { background: #22c55e; }
+  .qc-fail { background: #f59e0b; }
+
+  .empty-row td { text-align: center; padding: 60px; color: #aab; font-size: 14px; }
+
+  /* ── 모달 ── */
+  .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 200;
+             display: none; align-items: center; justify-content: center; padding: 24px; }
+  .overlay.open { display: flex; }
+  .modal { background: #fff; border-radius: 14px; width: 100%; max-width: 760px;
+           max-height: 88vh; display: flex; flex-direction: column; overflow: hidden;
+           box-shadow: 0 20px 60px rgba(0,0,0,.2); }
+  .modal-header { padding: 18px 24px; border-bottom: 1px solid #eee;
+                  display: flex; align-items: center; gap: 10px; }
+  .modal-header h2 { flex: 1; font-size: 15px; font-weight: 700; }
+  .modal-body { padding: 20px 24px; overflow-y: auto; flex: 1; }
+  .modal-body pre { white-space: pre-wrap; font-family: 'Courier New', monospace;
+                    font-size: 13px; line-height: 1.75; background: #f8f9fc;
+                    border-radius: 8px; padding: 16px; }
+  .modal-footer { padding: 14px 24px; border-top: 1px solid #eee;
+                  display: flex; gap: 8px; justify-content: flex-end; }
+  .btn-sm { padding: 7px 16px; border-radius: 7px; border: none; cursor: pointer;
+            font-size: 13px; font-weight: 600; transition: all .15s; }
+  .btn-ghost { background: #f0f2f8; color: #445; }
+  .btn-ghost:hover { background: #e4e8f0; }
+  .btn-blue  { background: #5b8def; color: #fff; }
+  .btn-blue:hover  { background: #4070d4; }
+</style>
+</head>
+<body>
+
+<!-- ── 사이드바 ── -->
+<nav class="sidebar">
+  <div class="sidebar-logo">✦ <span>Contents</span>Flow</div>
+  <div class="sidebar-nav">
+    <a class="nav-item" href="/frontend/dashboard.html">
+      <span class="nav-icon">✦</span> 콘텐츠 생성
+    </a>
+    <a class="nav-item active" href="/frontend/history.html">
+      <span class="nav-icon">📋</span> 콘텐츠 이력
+    </a>
+    <a class="nav-item" href="/frontend/settings.html">
+      <span class="nav-icon">⚙</span> 설정
+    </a>
+  </div>
+  <div class="sidebar-bottom">ContentFlow v0.1.0</div>
+</nav>
+
+<!-- ── 메인 ── -->
+<div class="main">
+  <div class="topbar">
+    <div class="topbar-left">
+      <h1>콘텐츠 이력</h1>
+      <p>생성·검수·발행된 모든 콘텐츠를 관리합니다</p>
+    </div>
+    <a class="btn-add" href="/frontend/dashboard.html">+ 새 콘텐츠 생성</a>
+  </div>
+
+  <div class="content">
+    <!-- 통계 -->
+    <div class="stats">
+      <div class="stat-card s-review">
+        <div class="stat-num" id="s-review">-</div>
+        <div class="stat-label">검수 대기</div>
+      </div>
+      <div class="stat-card s-done">
+        <div class="stat-num" id="s-published">-</div>
+        <div class="stat-label">발행 완료</div>
+      </div>
+      <div class="stat-card s-revision">
+        <div class="stat-num" id="s-revision">-</div>
+        <div class="stat-label">수정 요청</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num" id="s-total">-</div>
+        <div class="stat-label">전체 생성</div>
+      </div>
+    </div>
+
+    <!-- 검색 + 채널 필터 -->
+    <div class="toolbar">
+      <div class="search-wrap">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="search" placeholder="콘텐츠 제목으로 검색하세요" oninput="filterTable()" />
+      </div>
+      <div class="filter-btns">
+        <button class="filter-btn active" data-ch="">전체</button>
+        <button class="filter-btn" data-ch="blog">블로그</button>
+        <button class="filter-btn" data-ch="newsletter">뉴스레터</button>
+        <button class="filter-btn" data-ch="youtube">유튜브</button>
+        <button class="filter-btn" data-ch="shortform">숏폼</button>
+      </div>
+    </div>
+
+    <!-- 테이블 -->
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:40%">콘텐츠 제목</th>
+            <th>채널</th>
+            <th>생성일</th>
+            <th>생성 시간</th>
+            <th>상태</th>
+            <th>QC</th>
+          </tr>
+        </thead>
+        <tbody id="table-body">
+          <tr class="empty-row"><td colspan="6">로딩 중…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- 본문 모달 -->
+<div class="overlay" id="modal-overlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div class="modal-header">
+      <span id="modal-badge"></span>
+      <h2 id="modal-title"></h2>
+      <button class="btn-sm btn-ghost" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body"><pre id="modal-body">로딩 중…</pre></div>
+    <div class="modal-footer">
+      <a id="modal-link" href="#" target="_blank" style="display:none">
+        <button class="btn-sm btn-blue">↗ 발행 링크</button>
+      </a>
+      <button class="btn-sm btn-ghost" onclick="closeModal()">닫기</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API    = 'http://localhost:8000';
+const userId = localStorage.getItem('cf_user_id');
+
+if (!userId) {
+  alert('온보딩을 먼저 완료해 주세요.');
+  location.href = '/frontend/onboarding.html';
+}
+
+const CH_LABEL = { blog:'블로그', newsletter:'뉴스레터', youtube:'유튜브', shortform:'숏폼' };
+const ST_INFO  = {
+  review:         ['검수 대기', 'review'],
+  approved:       ['승인됨',   'approved'],
+  published:      ['발행 완료', 'published'],
+  revision:       ['수정 요청', 'revision'],
+  rejected:       ['반려',     'rejected'],
+  publish_failed: ['발행 실패', 'publish_failed'],
+};
+
+let allDrafts   = [];
+let activeFilter = '';
+
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+async function apiFetch(path) {
+  const res = await fetch(API + path);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+function fmtDate(iso) {
+  if (!iso) return '-';
+  const d = new Date(iso);
+  return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function fmtMs(ms) {
+  if (!ms) return '-';
+  const s = Math.round(ms / 1000);
+  return s < 60 ? `${s}초` : `${Math.floor(s/60)}분 ${s%60}초`;
+}
+
+// ── 통계 ─────────────────────────────────────────────────
+function updateStats(drafts) {
+  document.getElementById('s-total').textContent     = drafts.length;
+  document.getElementById('s-review').textContent    = drafts.filter(d => d.status === 'review').length;
+  document.getElementById('s-published').textContent = drafts.filter(d => d.status === 'published').length;
+  document.getElementById('s-revision').textContent  = drafts.filter(d => d.status === 'revision').length;
+}
+
+// ── 테이블 렌더 ───────────────────────────────────────────
+function renderTable(drafts) {
+  const tbody = document.getElementById('table-body');
+  if (!drafts.length) {
+    tbody.innerHTML = `<tr class="empty-row"><td colspan="6">${activeFilter ? '해당 채널 콘텐츠가 없어요.' : '생성된 콘텐츠가 없어요.'}</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = drafts.map(d => {
+    const [stLabel, stClass] = ST_INFO[d.status] || [d.status, 'review'];
+    return `<tr data-id="${esc(d.id)}" data-ch="${esc(d.channel_type)}" data-title="${esc(d.title||'')}" data-url="${esc(d.published_url||'')}">
+      <td class="td-title">${esc(d.title || '(제목 없음)')}</td>
+      <td><span class="ch-badge ${esc(d.channel_type)}">${CH_LABEL[d.channel_type]||d.channel_type}</span></td>
+      <td class="td-meta">${fmtDate(d.published_at || d.created_at)}</td>
+      <td class="td-meta">${fmtMs(d.generation_ms)}</td>
+      <td><span class="st-badge st-${esc(stClass)}">${stLabel}</span></td>
+      <td><span class="qc-dot ${d.qc_passed ? 'qc-ok' : 'qc-fail'}" title="${d.qc_passed ? 'QC 통과' : 'QC 미통과'}"></span></td>
+    </tr>`;
+  }).join('');
+
+  tbody.querySelectorAll('tr').forEach(row => {
+    row.addEventListener('click', () =>
+      openModal(row.dataset.id, row.dataset.ch, row.dataset.title, row.dataset.url)
+    );
+  });
+}
+
+// ── 검색 + 필터 ───────────────────────────────────────────
+function filterTable() {
+  const q = document.getElementById('search').value.trim().toLowerCase();
+  const filtered = allDrafts.filter(d => {
+    const matchCh    = !activeFilter || d.channel_type === activeFilter;
+    const matchQuery = !q || (d.title||'').toLowerCase().includes(q);
+    return matchCh && matchQuery;
+  });
+  renderTable(filtered);
+}
+
+document.querySelectorAll('.filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    activeFilter = btn.dataset.ch;
+    filterTable();
+  });
+});
+
+// ── 데이터 로드 ───────────────────────────────────────────
+async function load() {
+  try {
+    const drafts = await apiFetch(`/api/drafts/published?user_id=${userId}`);
+    allDrafts = drafts;
+    updateStats(drafts);
+    filterTable();
+  } catch(e) {
+    document.getElementById('table-body').innerHTML =
+      `<tr class="empty-row"><td colspan="6">로드 실패: ${esc(e.message)}</td></tr>`;
+  }
+}
+
+// ── 모달 ──────────────────────────────────────────────────
+async function openModal(id, chType, title, publishedUrl) {
+  document.getElementById('modal-title').textContent = title || '본문';
+  document.getElementById('modal-body').textContent  = '로딩 중…';
+  const badge = document.getElementById('modal-badge');
+  badge.className = `ch-badge ${chType}`;
+  badge.textContent = CH_LABEL[chType] || chType;
+  const linkEl = document.getElementById('modal-link');
+  linkEl.href = publishedUrl || '#';
+  linkEl.style.display = publishedUrl ? 'block' : 'none';
+  document.getElementById('modal-overlay').classList.add('open');
+  try {
+    const data = await apiFetch(`/api/drafts/${id}`);
+    document.getElementById('modal-body').textContent = data.body_md || '(내용 없음)';
+  } catch(e) {
+    document.getElementById('modal-body').textContent = `로드 실패: ${e.message}`;
+  }
+}
+
+function closeModal() {
+  document.getElementById('modal-overlay').classList.remove('open');
+}
+
+load();
+</script>
+</body>
+</html>
