@@ -67,6 +67,16 @@ def _extract_newsletter_html(body_md: str) -> str:
         start = lower.find("<body")
     return body_md[start:].strip() if start >= 0 else ""
 
+
+def _json_default(value):
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    return str(value)
+
+
+def _safe_json(data) -> str:
+    return json.dumps(data, ensure_ascii=False, indent=2, default=_json_default)
+
 # ── 지식 베이스 로드 ──────────────────────────
 def load_knowledge(user_id: str, persona_md: str, style_md: str, topic_keywords: list,
                    topic_md: str = "") -> str:
@@ -158,12 +168,15 @@ async def generate_researched_topic_proposals(
 ) -> list[dict]:
     compact_items = []
     for item in research_items[:30]:
+        published_at = item.get("published_at", "")
+        if hasattr(published_at, "isoformat"):
+            published_at = published_at.isoformat()
         compact_items.append({
             "title": item.get("title", ""),
             "summary": item.get("summary", ""),
             "url": item.get("url", ""),
             "source": item.get("source", ""),
-            "published_at": item.get("published_at", ""),
+            "published_at": published_at,
         })
 
     prompt = f"""
@@ -171,7 +184,7 @@ async def generate_researched_topic_proposals(
 
 ---
 오늘 새벽 수집한 자료:
-{json.dumps(compact_items, ensure_ascii=False, indent=2)}
+{_safe_json(compact_items)}
 
 위 자료만 근거로 오늘 만들 콘텐츠 주제 {count}개를 제안하라.
 
@@ -240,7 +253,7 @@ async def generate_source_package(
 확정된 주제:
 - 제목: {selected_topic.get('title')}
 - 핵심 메시지: {selected_topic.get('message')}
-- 근거 자료: {json.dumps(selected_topic.get('evidence', []), ensure_ascii=False)}
+- 근거 자료: {_safe_json(selected_topic.get('evidence', []))}
 - 타겟 감정: {input_emotion}
 - 경험 메모: {input_memo or "없음"}
 - 제외 사항: {input_exclude or "없음"}
@@ -330,7 +343,7 @@ async def generate_draft(
 
 ---
 원본 기획 패키지:
-{json.dumps(source_package, ensure_ascii=False, indent=2)}
+{_safe_json(source_package)}
 
 확정된 주제: {selected_topic.get('title')}
 핵심 메시지: {selected_topic.get('message')}
