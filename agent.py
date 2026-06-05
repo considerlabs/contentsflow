@@ -32,18 +32,18 @@ def _extract_title(body_md: str, fallback: str = "") -> str:
     return fallback
 
 # ── 지식 베이스 로드 ──────────────────────────
-def load_knowledge(user_id: str, persona_md: str, style_md: str, topic_keywords: list) -> str:
+def load_knowledge(user_id: str, persona_md: str, style_md: str, topic_keywords: list,
+                   topic_md: str = "") -> str:
     topic_section = "\n".join([f"- {k}" for k in topic_keywords])
-    return f"""
-## persona.md
-{persona_md}
-
-## style.md
-{style_md}
-
-## 등록된 키워드 목록
-{topic_section}
-""".strip()
+    parts = [
+        f"## persona.md\n{persona_md}",
+        f"## style.md\n{style_md}",
+    ]
+    if topic_md:
+        parts.append(f"## topic.md\n{topic_md}")
+    if topic_section:
+        parts.append(f"## 등록된 키워드 목록\n{topic_section}")
+    return "\n\n".join(parts)
 
 
 # ── Ollama 호출 ──────────────────────────────
@@ -200,9 +200,10 @@ async def run_pipeline(
     input_memo: str,
     input_exclude: str,
     selected_topic: dict,
-    channels: list[str]
+    channels: list[str],
+    topic_md: str = ""
 ) -> list[dict]:
-    knowledge = load_knowledge("", persona_md, style_md, topic_keywords)
+    knowledge = load_knowledge("", persona_md, style_md, topic_keywords, topic_md=topic_md)
     results   = []
 
     for ch in channels:

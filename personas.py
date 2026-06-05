@@ -3,7 +3,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from pydantic import BaseModel
-import uuid
+from typing import Optional
+import uuid, json
 
 from database import get_db
 from models import UserPersona, User
@@ -13,32 +14,41 @@ router = APIRouter()
 
 class OnboardingAnswers(BaseModel):
     user_id:     str
-    raw_answers: dict   # 온보딩 전체 답변
+    raw_answers: dict
 
 class PersonaUpdate(BaseModel):
     persona_md: str
     style_md:   str
+    topic_md:   Optional[str] = ""
 
 PERSONA_SYSTEM = """
-너는 콘텐츠 자동화 시스템의 페르소나 생성 전문가다.
-사용자의 온보딩 답변을 분석해서 persona.md와 style.md 두 파일을 생성해라.
-반드시 JSON 형식으로만 출력하라:
-{"persona_md": "...", "style_md": "..."}
+너는 콘텐츠 자동화 시스템의 전문가다.
+사용자의 온보딩 답변을 분석해서 아래 세 파일을 생성해라.
+
+반드시 JSON 형식으로만 출력하라. 다른 텍스트 없이 JSON만:
+{
+  "persona_md": "...",
+  "style_md": "...",
+  "topic_md": "..."
+}
+
+각 파일 역할:
+- persona_md: 에디터 정체성·경력·핵심가치·절대금지 표현 (마크다운)
+- style_md: 말투·문장구조·길이·채널별 포맷 가이드 (마크다운)
+- topic_md: 핵심 포지셔닝 한 줄 / 플레이북 주제 / SEO 키워드 목록 / 절대 금지 내용 (마크다운)
 """
 
 @router.post("/generate")
 async def generate_persona(body: OnboardingAnswers, db: AsyncSession = Depends(get_db)):
-    prompt = f"온보딩 답변:\n{body.raw_answers}\n\npersona.md와 style.md를 생성하라."
+    prompt = f"온보딩 답변:\n{body.raw_answers}\n\npersona.md, style.md, topic.md 세 파일을 생성하라."
     raw    = await call_llm(prompt, system=PERSONA_SYSTEM)
 
-    import json
     try:
         start = raw.find("{"); end = raw.rfind("}") + 1
         data  = json.loads(raw[start:end])
     except Exception:
-        data  = {"persona_md": raw, "style_md": ""}
+        data  = {"persona_md": raw, "style_md": "", "topic_md": ""}
 
-    # 기존 버전 조회
     result  = await db.execute(
         select(UserPersona)
         .where(UserPersona.user_id == uuid.UUID(body.user_id))
@@ -50,14 +60,14 @@ async def generate_persona(body: OnboardingAnswers, db: AsyncSession = Depends(g
     persona = UserPersona(
         user_id     = uuid.UUID(body.user_id),
         raw_answers = body.raw_answers,
-        persona_md  = data["persona_md"],
-        style_md    = data["style_md"],
+        persona_md  = data.get("persona_md", ""),
+        style_md    = data.get("style_md", ""),
+        topic_md    = data.get("topic_md", ""),
         version     = version
     )
     db.add(persona)
     await db.flush()
 
-    # 온보딩 완료 처리
     user_result = await db.execute(select(User).where(User.id == uuid.UUID(body.user_id)))
     user = user_result.scalar_one_or_none()
     if user:
@@ -80,6 +90,7 @@ async def get_persona(user_id: str, db: AsyncSession = Depends(get_db)):
         "id":         str(persona.id),
         "persona_md": persona.persona_md,
         "style_md":   persona.style_md,
+        "topic_md":   persona.topic_md or "",
         "version":    persona.version,
     }
 
@@ -92,4 +103,5 @@ async def update_persona(persona_id: str, body: PersonaUpdate, db: AsyncSession 
         raise HTTPException(status_code=404, detail="페르소나를 찾을 수 없습니다.")
     persona.persona_md = body.persona_md
     persona.style_md   = body.style_md
+    persona.topic_md   = body.topic_md or ""
     return {"status": "updated"}

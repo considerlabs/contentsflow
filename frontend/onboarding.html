@@ -56,7 +56,7 @@
 <script>
 const API = 'http://localhost:8000';
 let step = 1;
-const TOTAL = 5;
+const TOTAL = 6;
 let userId   = localStorage.getItem('cf_user_id')   || '';
 let personaId = localStorage.getItem('cf_persona_id') || '';
 let rawAnswers = {};
@@ -126,14 +126,35 @@ const steps = [
       rawAnswers.tone      = v('f_tone');
       rawAnswers.forbidden = v('f_forbidden');
       rawAnswers.verified  = v('f_verified');
-      // 페르소나 생성
+    }
+  },
+  {
+    id: 4, title: '콘텐츠 전략',
+    html: `
+      <label>핵심 포지셔닝 (한 줄)</label>
+      <input type="text" id="f_positioning" placeholder="재직 중 50대가 AI로 월 100~200만원 사이드잡 수익 만들기" />
+      <label>첫 번째 플레이북 주제</label>
+      <input type="text" id="f_playbook" placeholder="AI로 보고서 대필 프리랜서로 월 100만원 버는 법" />
+      <label>SEO 핵심 키워드 (쉼표 구분)</label>
+      <input type="text" id="f_seo" placeholder="50대 AI 부업, 직장인 사이드잡, AI 자동화 수익" />
+      <label>절대 금지 내용</label>
+      <input type="text" id="f_content_forbidden" placeholder="검증되지 않은 수치, 코딩 필요 방법, 월 2만원 초과 초기비용" />
+      <p class="hint">이 정보로 AI가 persona.md · style.md · topic.md 세 파일을 생성합니다.</p>
+    `,
+    required: ['f_positioning','f_playbook'],
+    async onNext() {
+      rawAnswers.positioning        = v('f_positioning');
+      rawAnswers.playbook           = v('f_playbook');
+      rawAnswers.seo_keywords       = v('f_seo');
+      rawAnswers.content_forbidden  = v('f_content_forbidden');
+      // 3개 파일 동시 생성
       const res = await api('POST', '/api/personas/generate', { user_id: userId, raw_answers: rawAnswers });
       personaId = res.persona_id;
       localStorage.setItem('cf_persona_id', personaId);
     }
   },
   {
-    id: 4, title: '발행 채널 선택',
+    id: 5, title: '발행 채널 선택',
     html: `
       <p style="font-size:14px;color:#555;margin-bottom:16px;">사용할 채널을 선택하세요. API 키는 나중에 설정에서 입력할 수 있어요.</p>
       <div class="channel-grid">
@@ -173,7 +194,7 @@ const steps = [
     }
   },
   {
-    id: 5, title: '첫 번째 키워드',
+    id: 6, title: '첫 번째 키워드',
     html: `
       <label>카테고리 이름</label>
       <input type="text" id="f_catname" placeholder="AI 사이드잡" />

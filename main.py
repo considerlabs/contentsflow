@@ -15,8 +15,12 @@ import users, personas, categories, keywords, channels, sessions, drafts
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    from sqlalchemy import text
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await conn.execute(text(
+            "ALTER TABLE user_personas ADD COLUMN IF NOT EXISTS topic_md TEXT NOT NULL DEFAULT ''"
+        ))
     import asyncio
     from notion_poller import run_poller
     asyncio.create_task(run_poller())

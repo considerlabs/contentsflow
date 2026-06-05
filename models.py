@@ -37,6 +37,7 @@ class UserPersona(Base):
     raw_answers = Column(JSON, nullable=False)   # 온보딩 원본 답변
     persona_md  = Column(Text, nullable=False)   # 생성된 persona.md
     style_md    = Column(Text, nullable=False)   # 생성된 style.md
+    topic_md    = Column(Text, nullable=True, default="")  # 생성된 topic.md
     version     = Column(Integer, default=1)
     created_at  = Column(DateTime(timezone=True), server_default=func.now())
     updated_at  = Column(DateTime(timezone=True), onupdate=func.now())

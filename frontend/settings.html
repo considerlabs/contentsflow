@@ -147,6 +147,7 @@
       <div class="persona-tabs">
         <button class="ptab active" onclick="switchPtab('persona')">persona.md</button>
         <button class="ptab"        onclick="switchPtab('style')">style.md</button>
+        <button class="ptab"        onclick="switchPtab('topic')">topic.md</button>
       </div>
       <div id="persona-pane">
         <label>페르소나 파일</label>
@@ -155,6 +156,10 @@
       <div id="style-pane" style="display:none">
         <label>스타일 파일</label>
         <textarea id="style-md" placeholder="스타일 파일 로딩 중…"></textarea>
+      </div>
+      <div id="topic-pane" style="display:none">
+        <label>콘텐츠 전략 파일 (포지셔닝·SEO·금지 내용)</label>
+        <textarea id="topic-md" placeholder="topic.md 로딩 중…"></textarea>
       </div>
       <div style="margin-top:14px">
         <button class="btn-ghost btn-sm" onclick="restartOnboarding()">온보딩 재시작</button>
@@ -386,6 +391,7 @@ async function loadPersona() {
     localStorage.setItem('cf_persona_id', personaId);
     document.getElementById('persona-md').value = data.persona_md;
     document.getElementById('style-md').value   = data.style_md;
+    document.getElementById('topic-md').value   = data.topic_md || '';
   } catch(e) {
     if (e.message.includes('404') || e.message.includes('없습니다')) {
       document.getElementById('persona-md').placeholder = '온보딩을 완료하면 자동 생성돼요.';
@@ -394,10 +400,11 @@ async function loadPersona() {
 }
 
 function switchPtab(which) {
-  document.querySelectorAll('.ptab').forEach((b, i) =>
-    b.classList.toggle('active', (i === 0 && which === 'persona') || (i === 1 && which === 'style')));
+  const order = ['persona','style','topic'];
+  document.querySelectorAll('.ptab').forEach((b, i) => b.classList.toggle('active', order[i] === which));
   document.getElementById('persona-pane').style.display = which === 'persona' ? 'block' : 'none';
   document.getElementById('style-pane').style.display   = which === 'style'   ? 'block' : 'none';
+  document.getElementById('topic-pane').style.display   = which === 'topic'   ? 'block' : 'none';
 }
 
 async function savePersona() {
@@ -406,6 +413,7 @@ async function savePersona() {
     await api('PUT', `/api/personas/${personaId}`, {
       persona_md: document.getElementById('persona-md').value,
       style_md:   document.getElementById('style-md').value,
+      topic_md:   document.getElementById('topic-md').value,
     });
     toast('페르소나 저장됨');
   } catch(e) { toast(e.message, false); }

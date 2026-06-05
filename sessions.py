@@ -60,7 +60,8 @@ async def create_session(body: SessionCreate, db: AsyncSession = Depends(get_db)
     keywords = [row[0] for row in kw_result.fetchall()]
 
     # 오케스트레이터 — 주제 후보 생성
-    knowledge  = load_knowledge("", persona.persona_md, persona.style_md, keywords)
+    knowledge  = load_knowledge("", persona.persona_md, persona.style_md, keywords,
+                                topic_md=persona.topic_md or "")
     candidates = await generate_topic_candidates(
         knowledge,
         body.input_keyword,
@@ -143,7 +144,7 @@ async def _run_generation(
         drafts = await run_pipeline(
             persona.persona_md, persona.style_md, keywords,
             selected_topic.get("title", ""), input_emotion, input_memo, "",
-            selected_topic, channels
+            selected_topic, channels, topic_md=persona.topic_md or ""
         )
 
         # DB 저장
