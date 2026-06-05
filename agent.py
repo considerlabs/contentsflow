@@ -151,6 +151,81 @@ async def generate_topic_candidates(
     return [{"title": raw[:100], "message": "", "emotion": "", "channel": "blog"}]
 
 
+async def generate_researched_topic_proposals(
+    knowledge: str,
+    research_items: list[dict],
+    count: int = 5,
+) -> list[dict]:
+    compact_items = []
+    for item in research_items[:30]:
+        compact_items.append({
+            "title": item.get("title", ""),
+            "summary": item.get("summary", ""),
+            "url": item.get("url", ""),
+            "source": item.get("source", ""),
+            "published_at": item.get("published_at", ""),
+        })
+
+    prompt = f"""
+{knowledge}
+
+---
+오늘 새벽 수집한 자료:
+{json.dumps(compact_items, ensure_ascii=False, indent=2)}
+
+위 자료만 근거로 오늘 만들 콘텐츠 주제 {count}개를 제안하라.
+
+원칙:
+- 50~60대 재직자, 퇴직 불안, AI 기반 부수입 파이프라인이라는 사용자 페르소나에 맞출 것
+- 수집 자료에 없는 사실, 수치, 사례를 만들지 말 것
+- 블로그 원문 허브로 발행한 뒤 뉴스레터·유튜브·인스타그램으로 재활용하기 좋은 주제를 우선할 것
+- 각 주제는 왜 지금 써야 하는지와 근거 자료 URL을 포함할 것
+
+반드시 아래 JSON 형식으로만 출력하라. 다른 텍스트 없이 JSON만:
+
+[
+  {{
+    "title": "주제 제목",
+    "message": "핵심 메시지 한 문장",
+    "rationale": "이 주제가 오늘 유효한 이유",
+    "emotion": "독자가 느낄 감정",
+    "channel": "blog",
+    "channels": ["blog", "newsletter", "youtube", "shortform"],
+    "evidence": [
+      {{"title": "근거 자료 제목", "url": "https://...", "note": "이 자료를 어떻게 활용할지"}}
+    ]
+  }}
+]
+"""
+    raw = await call_llm(prompt, num_predict=8192)
+    data = _extract_json(raw, fallback=None)
+    if isinstance(data, list) and data:
+        proposals = []
+        for item in data[:count]:
+            if not isinstance(item, dict):
+                continue
+            item.setdefault("channels", list(SUPPORTED_CHANNELS))
+            item.setdefault("channel", "blog")
+            item.setdefault("evidence", [])
+            proposals.append(item)
+        if proposals:
+            return proposals
+
+    fallback_items = compact_items[:count]
+    return [
+        {
+            "title": item.get("title") or f"오늘의 리서치 주제 {idx + 1}",
+            "message": item.get("summary", "")[:160],
+            "rationale": "수집 자료를 직접 근거로 작성할 수 있는 주제입니다.",
+            "emotion": "퇴직과 수입에 대한 현실적 불안",
+            "channel": "blog",
+            "channels": list(SUPPORTED_CHANNELS),
+            "evidence": [{"title": item.get("title", ""), "url": item.get("url", ""), "note": item.get("summary", "")[:120]}],
+        }
+        for idx, item in enumerate(fallback_items)
+    ]
+
+
 async def generate_source_package(
     knowledge: str,
     selected_topic: dict,
@@ -165,6 +240,7 @@ async def generate_source_package(
 확정된 주제:
 - 제목: {selected_topic.get('title')}
 - 핵심 메시지: {selected_topic.get('message')}
+- 근거 자료: {json.dumps(selected_topic.get('evidence', []), ensure_ascii=False)}
 - 타겟 감정: {input_emotion}
 - 경험 메모: {input_memo or "없음"}
 - 제외 사항: {input_exclude or "없음"}
@@ -189,6 +265,7 @@ async def generate_source_package(
 }}
 
 검증되지 않은 수치나 사례를 만들지 말라.
+근거 자료가 제공된 경우 해당 자료의 주장 범위 안에서만 활용하라.
 """
     raw = await call_llm(prompt, num_predict=4096)
     fallback = {

@@ -27,6 +27,7 @@ class User(Base):
     categories  = relationship("Category",       back_populates="user", cascade="all, delete")
     channels    = relationship("ChannelConfig",  back_populates="user", cascade="all, delete")
     sessions    = relationship("ContentSession", back_populates="user", cascade="all, delete")
+    research_sources = relationship("ResearchSource", back_populates="user", cascade="all, delete")
 
 
 class UserPersona(Base):
@@ -157,3 +158,64 @@ class ReviewLog(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     draft = relationship("ContentDraft", back_populates="review_logs")
+
+
+class ResearchSource(Base):
+    __tablename__ = "research_sources"
+
+    id              = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id         = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    name            = Column(String(150), nullable=False)
+    url             = Column(Text, nullable=False)
+    source_type     = Column(String(50), default="rss")  # rss|site
+    is_active       = Column(Boolean, default=True)
+    last_checked_at = Column(DateTime(timezone=True))
+    created_at      = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at      = Column(DateTime(timezone=True), onupdate=func.now())
+
+    user = relationship("User", back_populates="research_sources")
+
+
+class ResearchRun(Base):
+    __tablename__ = "research_runs"
+
+    id                = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id           = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    status            = Column(String(50), default="collecting")  # collecting|topic_ready|failed
+    item_count        = Column(Integer, default=0)
+    error_message     = Column(Text)
+    notification_sent = Column(Boolean, default=False)
+    started_at        = Column(DateTime(timezone=True), server_default=func.now())
+    finished_at       = Column(DateTime(timezone=True))
+    created_at        = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class ResearchItem(Base):
+    __tablename__ = "research_items"
+
+    id           = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    run_id       = Column(UUID(as_uuid=True), ForeignKey("research_runs.id", ondelete="CASCADE"), nullable=False)
+    user_id      = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    source_id    = Column(UUID(as_uuid=True), ForeignKey("research_sources.id", ondelete="SET NULL"), nullable=True)
+    title        = Column(Text, nullable=False)
+    url          = Column(Text)
+    summary      = Column(Text)
+    published_at = Column(DateTime(timezone=True))
+    raw          = Column(JSON)
+    created_at   = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class TopicProposal(Base):
+    __tablename__ = "topic_proposals"
+
+    id         = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    run_id     = Column(UUID(as_uuid=True), ForeignKey("research_runs.id", ondelete="CASCADE"), nullable=False)
+    user_id    = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    title      = Column(Text, nullable=False)
+    message    = Column(Text)
+    rationale  = Column(Text)
+    evidence   = Column(JSON)
+    channels   = Column(JSON)
+    status     = Column(String(50), default="proposed")  # proposed|selected|generating|generated
+    session_id = Column(UUID(as_uuid=True), ForeignKey("content_sessions.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())

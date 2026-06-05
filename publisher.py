@@ -49,7 +49,10 @@ async def publish_draft(draft_id: str, channel_type: str, body_md: str):
             elif channel_type == "newsletter":
                 published_url = await _publish_newsletter(channel, draft.title, draft.body_html or body_md, api_key)
             elif channel_type in ("youtube", "shortform"):
-                published_url = await _save_to_drive(channel, draft.title, body_md, channel_type, api_key)
+                if channel.api_endpoint:
+                    published_url = await _publish_webhook(channel, draft.title, body_md, channel_type, api_key)
+                else:
+                    published_url = await _save_to_drive(channel, draft.title, body_md, channel_type, api_key)
             else:
                 raise ValueError(f"지원하지 않는 채널입니다: {channel_type}")
 
@@ -101,6 +104,23 @@ async def _publish_newsletter(channel: ChannelConfig, title: str, body_html: str
         )
         res.raise_for_status()
         return res.json().get("url", "")
+
+
+async def _publish_webhook(channel: ChannelConfig, title: str, body: str, channel_type: str, api_key: str) -> str:
+    async with httpx.AsyncClient(timeout=60) as client:
+        res = await client.post(
+            channel.api_endpoint,
+            headers={"Authorization": f"Bearer {api_key}"} if api_key else {},
+            json={
+                "channel_type": channel_type,
+                "title": title,
+                "content": body,
+                "extra_config": channel.extra_config or {},
+            },
+        )
+        res.raise_for_status()
+        data = res.json()
+        return data.get("url") or data.get("published_url") or ""
 
 
 async def _save_to_drive(channel: ChannelConfig, title: str, body: str, channel_type: str, api_key: str) -> str:

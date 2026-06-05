@@ -11,9 +11,10 @@ import uuid
 from database import get_db
 from models import (
     ContentSession, ContentDraft, UserPersona,
-    Keyword, ReviewLog, User
+    Category, Keyword, ReviewLog, User
 )
 from agent import SUPPORTED_CHANNELS, generate_topic_candidates, run_pipeline, load_knowledge
+from auth import get_current_user, parse_uuid, require_same_user
 import notion
 
 router = APIRouter()
@@ -22,10 +23,7 @@ router = APIRouter()
 def _to_uuid(value: Optional[str], field_name: str) -> Optional[uuid.UUID]:
     if not value:
         return None
-    try:
-        return uuid.UUID(value)
-    except (TypeError, ValueError) as exc:
-        raise HTTPException(status_code=400, detail=f"{field_name} 값이 올바른 UUID가 아닙니다.") from exc
+    return parse_uuid(value, field_name)
 
 
 # ── 스키마 ───────────────────────────────────
@@ -49,10 +47,28 @@ class ReviewAction(BaseModel):
 
 # ── 1. 세션 생성 + 주제 후보 생성 ─────────────
 @router.post("/")
-async def create_session(body: SessionCreate, db: AsyncSession = Depends(get_db)):
-    user_id = _to_uuid(body.user_id, "user_id")
+async def create_session(
+    body: SessionCreate,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    user_id = require_same_user(body.user_id, user)
     category_id = _to_uuid(body.category_id, "category_id")
     keyword_id = _to_uuid(body.keyword_id, "keyword_id")
+
+    if category_id:
+        category_result = await db.execute(
+            select(Category).where(Category.id == category_id, Category.user_id == user_id)
+        )
+        if not category_result.scalar_one_or_none():
+            raise HTTPException(status_code=404, detail="카테고리를 찾을 수 없습니다.")
+
+    if keyword_id:
+        keyword_result = await db.execute(
+            select(Keyword).where(Keyword.id == keyword_id, Keyword.user_id == user_id)
+        )
+        if not keyword_result.scalar_one_or_none():
+            raise HTTPException(status_code=404, detail="키워드를 찾을 수 없습니다.")
 
     # 사용자 페르소나 조회
     result = await db.execute(
@@ -112,12 +128,15 @@ async def generate_drafts(
     session_id: str,
     body: TopicSelect,
     background_tasks: BackgroundTasks,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
 ):
     parsed_session_id = _to_uuid(session_id, "session_id")
     result  = await db.execute(select(ContentSession).where(ContentSession.id == parsed_session_id))
     session = result.scalar_one_or_none()
     if not session:
+        raise HTTPException(status_code=404, detail="세션을 찾을 수 없습니다.")
+    if session.user_id != user.id:
         raise HTTPException(status_code=404, detail="세션을 찾을 수 없습니다.")
 
     session.selected_topic = body.selected_topic
@@ -240,12 +259,13 @@ async def _run_generation(
 async def review_draft(
     draft_id: str,
     body: ReviewAction,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
 ):
     parsed_draft_id = _to_uuid(draft_id, "draft_id")
     result = await db.execute(select(ContentDraft).where(ContentDraft.id == parsed_draft_id))
     draft  = result.scalar_one_or_none()
-    if not draft:
+    if not draft or draft.user_id != user.id:
         raise HTTPException(status_code=404, detail="초안을 찾을 수 없습니다.")
     if body.action not in {"approved", "revision", "rejected"}:
         raise HTTPException(status_code=400, detail="action은 approved, revision, rejected 중 하나여야 합니다.")
@@ -271,8 +291,8 @@ async def review_draft(
     except Exception:
         pass
 
-    # 승인 시 블로그는 자동 발행, 나머지 채널은 원소스 멀티유즈 자산으로 승인 보관
-    if body.action == "approved" and draft.channel_type == "blog":
+    # 승인 시 선택 채널 발행 시도. 채널 설정이 없으면 publisher가 상태/메모를 남긴다.
+    if body.action == "approved":
         await db.commit()
         from publisher import publish_draft
         await publish_draft(str(draft.id), draft.channel_type, draft.body_md)
@@ -282,19 +302,19 @@ async def review_draft(
 
 # ── 4. 세션 상태 조회 ─────────────────────────
 @router.get("/{session_id}")
-async def get_session(session_id: str, db: AsyncSession = Depends(get_db)):
+async def get_session(session_id: str, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
     parsed_session_id = _to_uuid(session_id, "session_id")
     result  = await db.execute(
         select(ContentSession)
         .where(ContentSession.id == parsed_session_id)
     )
     session = result.scalar_one_or_none()
-    if not session:
+    if not session or session.user_id != user.id:
         raise HTTPException(status_code=404, detail="세션을 찾을 수 없습니다.")
 
     # 초안 목록도 함께 반환
     drafts_result = await db.execute(
-        select(ContentDraft).where(ContentDraft.session_id == session.id)
+        select(ContentDraft).where(ContentDraft.session_id == session.id, ContentDraft.user_id == user.id)
     )
     drafts = drafts_result.scalars().all()
 

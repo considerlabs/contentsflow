@@ -11,22 +11,23 @@
          display: flex; }
 
   /* ── 사이드바 ── */
-  .sidebar { width: 220px; background: #1e2130; color: #aab; height: 100vh;
+  .sidebar { width: 244px; background: #171c2c; color: #aeb8d1; height: 100vh;
              position: fixed; top: 0; left: 0;
-             display: flex; flex-direction: column; flex-shrink: 0; overflow-y: auto; }
-  .main { margin-left: 220px; }
-  .sidebar-logo { height: 72px; display: flex; align-items: center; padding: 0 24px; font-size: 20px; font-weight: 800;
-                  color: #fff; letter-spacing: -.3px; border-bottom: 1px solid #2d3147; }
-  .sidebar-logo span { color: #5b8def; }
-  .sidebar-nav { padding: 12px 0; flex: 1; }
-  .nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 20px;
-              font-size: 13px; font-weight: 500; color: #8899bb; cursor: pointer;
-              border-left: 3px solid transparent; transition: all .15s; text-decoration: none; }
-  .nav-item:hover { background: #252840; color: #dde; }
-  .nav-item.active { background: #252840; color: #fff; border-left-color: #5b8def; }
-  .nav-icon { font-size: 15px; width: 18px; text-align: center; }
-  .sidebar-bottom { padding: 16px 20px; border-top: 1px solid #2d3147;
-                    font-size: 12px; color: #556; }
+             display: flex; flex-direction: column; flex-shrink: 0; overflow-y: auto; z-index:50; }
+  .main { margin-left: 244px; }
+  .sidebar-logo { height: 72px; display: flex; align-items: center; gap:10px; padding: 0 22px; font-size: 20px; font-weight: 900;
+                  color: #fff; border-bottom: 1px solid #2b3147; }
+  .logo-mark { width:30px; height:30px; display:grid; place-items:center; border-radius:8px; background:#4f7cff; color:#fff; font-size:15px; }
+  .sidebar-section { padding: 14px 0 6px; }
+  .sidebar-label { padding: 8px 22px; color:#66718e; font-size:11px; font-weight:800; text-transform:uppercase; }
+  .nav-item { display: flex; align-items: center; gap: 10px; height:38px; padding: 0 20px;
+              font-size: 13px; font-weight: 700; color: #aeb8d1; cursor: pointer;
+              border-left: 3px solid transparent; text-decoration: none; }
+  .nav-item:hover { background: #22283c; color: #fff; }
+  .nav-item.active { background: #22283c; color: #fff; border-left-color: #4f7cff; }
+  .nav-icon { font-size: 14px; width: 18px; text-align: center; }
+  .sidebar-bottom { margin-top:auto; padding: 16px 22px; border-top: 1px solid #2b3147;
+                    font-size: 12px; color: #65708c; line-height:1.5; }
 
   /* ── 메인 ── */
   .main { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 100vh; }
@@ -135,19 +136,22 @@
 
 <!-- ── 사이드바 ── -->
 <nav class="sidebar">
-  <div class="sidebar-logo">✦ <span>Contents</span>Flow</div>
-  <div class="sidebar-nav">
-    <a class="nav-item" href="/frontend/dashboard.html">
-      <span class="nav-icon">✦</span> 콘텐츠 생성
-    </a>
-    <a class="nav-item active" href="/frontend/history.html">
-      <span class="nav-icon">📋</span> 콘텐츠 이력
-    </a>
-    <a class="nav-item" href="/frontend/settings.html">
-      <span class="nav-icon">⚙</span> 설정
-    </a>
+  <div class="sidebar-logo"><span class="logo-mark">C</span> ContentFlow</div>
+  <div class="sidebar-section">
+    <div class="sidebar-label">Workspace</div>
+    <a class="nav-item" href="/dashboard"><span class="nav-icon">▣</span> 대시보드</a>
+    <a class="nav-item active" href="/history"><span class="nav-icon">▤</span> 콘텐츠 이력</a>
+    <a class="nav-item" href="/settings"><span class="nav-icon">⚙</span> 설정</a>
+    <a class="nav-item" href="/onboarding"><span class="nav-icon">◌</span> 온보딩</a>
   </div>
-  <div class="sidebar-bottom">ContentFlow v0.1.0</div>
+  <div class="sidebar-section">
+    <div class="sidebar-label">Channels</div>
+    <a class="nav-item" href="/history?channel=blog"><span class="nav-icon">B</span> 블로그</a>
+    <a class="nav-item" href="/history?channel=newsletter"><span class="nav-icon">N</span> 뉴스레터</a>
+    <a class="nav-item" href="/history?channel=youtube"><span class="nav-icon">Y</span> 유튜브</a>
+    <a class="nav-item" href="/history?channel=shortform"><span class="nav-icon">I</span> 인스타그램</a>
+  </div>
+  <div class="sidebar-bottom">v0.2.0<br>qwen3.6:35b-a3b</div>
 </nav>
 
 <!-- ── 메인 ── -->
@@ -157,7 +161,7 @@
       <h1>콘텐츠 이력</h1>
       <p>생성·검수·발행된 모든 콘텐츠를 관리합니다</p>
     </div>
-    <a class="btn-add" href="/frontend/dashboard.html">+ 새 콘텐츠 생성</a>
+    <a class="btn-add" href="/dashboard">+ 새 콘텐츠 생성</a>
   </div>
 
   <div class="content">
@@ -236,13 +240,10 @@
 </div>
 
 <script>
-const API    = 'http://localhost:8000';
-const userId = localStorage.getItem('cf_user_id');
-
-if (!userId) {
-  alert('온보딩을 먼저 완료해 주세요.');
-  location.href = '/frontend/onboarding.html';
-}
+const API = '';
+let authToken = localStorage.getItem('cf_access_token') || '';
+let currentUser = null;
+let userId = '';
 
 const CH_LABEL = { blog:'블로그', newsletter:'뉴스레터', youtube:'유튜브', shortform:'인스타그램' };
 const ST_INFO  = {
@@ -255,16 +256,42 @@ const ST_INFO  = {
 };
 
 let allDrafts   = [];
-let activeFilter = '';
+let activeFilter = new URLSearchParams(location.search).get('channel') || '';
 
 function esc(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 async function apiFetch(path) {
-  const res = await fetch(API + path);
+  const res = await fetch(API + path, {
+    headers: {
+      ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {}),
+    },
+  });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
+}
+
+async function requireAuth() {
+  if (!authToken) {
+    location.href = '/onboarding';
+    return false;
+  }
+  try {
+    currentUser = await apiFetch('/api/users/me');
+    userId = currentUser.id;
+    localStorage.setItem('cf_user_id', userId);
+    if (!currentUser.onboarding_done) {
+      location.href = '/onboarding';
+      return false;
+    }
+    return true;
+  } catch(e) {
+    localStorage.removeItem('cf_access_token');
+    localStorage.removeItem('cf_user_id');
+    location.href = '/onboarding';
+    return false;
+  }
 }
 
 function fmtDate(iso) {
@@ -325,10 +352,13 @@ function filterTable() {
 }
 
 document.querySelectorAll('.filter-btn').forEach(btn => {
+  btn.classList.toggle('active', btn.dataset.ch === activeFilter);
   btn.addEventListener('click', () => {
     document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     activeFilter = btn.dataset.ch;
+    const url = activeFilter ? `/history?channel=${encodeURIComponent(activeFilter)}` : '/history';
+    history.replaceState(null, '', url);
     filterTable();
   });
 });
@@ -369,7 +399,9 @@ function closeModal() {
   document.getElementById('modal-overlay').classList.remove('open');
 }
 
-load();
+(async function init() {
+  if (await requireAuth()) load();
+})();
 </script>
 </body>
 </html>

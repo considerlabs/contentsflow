@@ -4,11 +4,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from pydantic import BaseModel
 from typing import Optional
-import uuid, json
+import json
 
 from database import get_db
 from models import UserPersona, User
 from agent import call_llm
+from auth import get_current_user, parse_uuid, require_same_user
 
 router = APIRouter()
 
@@ -39,7 +40,12 @@ PERSONA_SYSTEM = """
 """
 
 @router.post("/generate")
-async def generate_persona(body: OnboardingAnswers, db: AsyncSession = Depends(get_db)):
+async def generate_persona(
+    body: OnboardingAnswers,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    parsed_user_id = require_same_user(body.user_id, user)
     prompt = f"온보딩 답변:\n{body.raw_answers}\n\npersona.md, style.md, topic.md 세 파일을 생성하라."
     raw    = await call_llm(prompt, system=PERSONA_SYSTEM)
 
@@ -51,14 +57,14 @@ async def generate_persona(body: OnboardingAnswers, db: AsyncSession = Depends(g
 
     result  = await db.execute(
         select(UserPersona)
-        .where(UserPersona.user_id == uuid.UUID(body.user_id))
+        .where(UserPersona.user_id == parsed_user_id)
         .order_by(UserPersona.version.desc()).limit(1)
     )
     latest  = result.scalar_one_or_none()
     version = (latest.version + 1) if latest else 1
 
     persona = UserPersona(
-        user_id     = uuid.UUID(body.user_id),
+        user_id     = parsed_user_id,
         raw_answers = body.raw_answers,
         persona_md  = data.get("persona_md", ""),
         style_md    = data.get("style_md", ""),
@@ -68,19 +74,17 @@ async def generate_persona(body: OnboardingAnswers, db: AsyncSession = Depends(g
     db.add(persona)
     await db.flush()
 
-    user_result = await db.execute(select(User).where(User.id == uuid.UUID(body.user_id)))
-    user = user_result.scalar_one_or_none()
-    if user:
-        user.onboarding_done = True
+    user.onboarding_done = True
 
     return {"persona_id": str(persona.id), "version": version}
 
 
 @router.get("/")
-async def get_persona(user_id: str, db: AsyncSession = Depends(get_db)):
+async def get_persona(user_id: str, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
+    parsed_user_id = require_same_user(user_id, user)
     result = await db.execute(
         select(UserPersona)
-        .where(UserPersona.user_id == uuid.UUID(user_id))
+        .where(UserPersona.user_id == parsed_user_id)
         .order_by(UserPersona.version.desc()).limit(1)
     )
     persona = result.scalar_one_or_none()
@@ -96,10 +100,15 @@ async def get_persona(user_id: str, db: AsyncSession = Depends(get_db)):
 
 
 @router.put("/{persona_id}")
-async def update_persona(persona_id: str, body: PersonaUpdate, db: AsyncSession = Depends(get_db)):
-    result  = await db.execute(select(UserPersona).where(UserPersona.id == uuid.UUID(persona_id)))
+async def update_persona(
+    persona_id: str,
+    body: PersonaUpdate,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    result  = await db.execute(select(UserPersona).where(UserPersona.id == parse_uuid(persona_id, "persona_id")))
     persona = result.scalar_one_or_none()
-    if not persona:
+    if not persona or persona.user_id != user.id:
         raise HTTPException(status_code=404, detail="페르소나를 찾을 수 없습니다.")
     persona.persona_md = body.persona_md
     persona.style_md   = body.style_md

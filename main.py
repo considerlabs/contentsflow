@@ -4,14 +4,15 @@
 from dotenv import load_dotenv
 load_dotenv()
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 import uvicorn
 
 from database import engine, Base
-import users, personas, categories, keywords, channels, sessions, drafts
+import users, personas, categories, keywords, channels, sessions, drafts, research
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -27,6 +28,7 @@ async def lifespan(app: FastAPI):
     import asyncio
     from notion_poller import run_poller
     asyncio.create_task(run_poller())
+    asyncio.create_task(research.research_scheduler())
     yield
 
 app = FastAPI(
@@ -54,9 +56,33 @@ app.include_router(keywords.router,   prefix="/api/keywords",   tags=["keywords"
 app.include_router(channels.router,   prefix="/api/channels",   tags=["channels"])
 app.include_router(sessions.router,   prefix="/api/sessions",   tags=["sessions"])
 app.include_router(drafts.router,     prefix="/api/drafts",     tags=["drafts"])
+app.include_router(research.router,    prefix="/api/research",   tags=["research"])
 
 @app.get("/health")
 async def health(): return {"status": "ok"}
+
+@app.get("/")
+async def root():
+    return RedirectResponse(url="/dashboard")
+
+@app.get("/dashboard")
+async def dashboard():
+    return RedirectResponse(url="/frontend/dashboard.html")
+
+@app.get("/history")
+async def history(request: Request):
+    target = "/frontend/history.html"
+    if request.url.query:
+        target = f"{target}?{request.url.query}"
+    return RedirectResponse(url=target)
+
+@app.get("/settings")
+async def settings_page():
+    return RedirectResponse(url="/frontend/settings.html")
+
+@app.get("/onboarding")
+async def onboarding():
+    return RedirectResponse(url="/frontend/onboarding.html")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

@@ -87,3 +87,48 @@ async def update_status(
             json={"properties": properties},
         )
         res.raise_for_status()
+
+
+async def register_topic_digest(title: str, body: str, dashboard_url: str = "") -> Optional[str]:
+    """새벽 리서치 주제 제안 다이제스트 등록. DB 속성이 맞지 않으면 호출부에서 무시한다."""
+    if not NOTION_API_KEY:
+        return None
+
+    payload = {
+        "parent": {"database_id": NOTION_DB_ID},
+        "properties": {
+            "콘텐츠 제목": {
+                "title": [{"text": {"content": title[:100]}}]
+            },
+            "상태": {"select": {"name": "검수 대기"}},
+            "채널": {"select": {"name": "블로그"}},
+            "주제 키워드": {"rich_text": [{"text": {"content": "새벽 리서치"}}]},
+            "파일명": {"rich_text": [{"text": {"content": dashboard_url or "research-digest"}}]},
+        },
+        "children": [
+            {
+                "object": "block",
+                "type": "paragraph",
+                "paragraph": {
+                    "rich_text": [{"type": "text", "text": {"content": body[:1800]}}]
+                },
+            }
+        ],
+    }
+    if dashboard_url:
+        payload["children"].append({
+            "object": "block",
+            "type": "paragraph",
+            "paragraph": {
+                "rich_text": [{"type": "text", "text": {"content": f"선택 및 생성: {dashboard_url}", "link": {"url": dashboard_url}}}]
+            },
+        })
+
+    async with httpx.AsyncClient(timeout=30) as client:
+        res = await client.post(
+            "https://api.notion.com/v1/pages",
+            headers=_headers(),
+            json=payload,
+        )
+        res.raise_for_status()
+        return res.json().get("id")
