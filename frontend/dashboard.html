@@ -116,15 +116,36 @@
   @media (max-width: 768px) {
     .layout { grid-template-columns: 1fr; }
   }
+  body { display: flex; }
+  .sidebar { width: 220px; background: #1e2130; color: #aab; height: 100vh;
+             position: fixed; top: 0; left: 0;
+             display: flex; flex-direction: column; overflow-y: auto; z-index: 50; }
+  .sidebar-logo { padding: 22px 20px 16px; font-size: 15px; font-weight: 800;
+                  color: #fff; letter-spacing: -.3px; border-bottom: 1px solid #2d3147; }
+  .sidebar-logo span { color: #5b8def; }
+  .sidebar-nav { padding: 12px 0; flex: 1; }
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 20px;
+              font-size: 13px; font-weight: 500; color: #8899bb; cursor: pointer;
+              border-left: 3px solid transparent; transition: all .15s; text-decoration: none; }
+  .nav-item:hover { background: #252840; color: #dde; }
+  .nav-item.active { background: #252840; color: #fff; border-left-color: #5b8def; }
+  .nav-icon { font-size: 15px; width: 18px; text-align: center; }
+  .sidebar-bottom { padding: 16px 20px; border-top: 1px solid #2d3147; font-size: 12px; color: #556; }
+  .main-wrap { margin-left: 220px; flex: 1; min-width: 0; }
 </style>
 </head>
 <body>
 
-<header>
-  <div class="logo">✦ ContentFlow</div>
-  <a href="/frontend/history.html">발행 이력</a>
-  <a href="/frontend/settings.html">⚙ 설정</a>
-</header>
+<nav class="sidebar">
+  <div class="sidebar-logo">✦ <span>Contents</span>Flow</div>
+  <div class="sidebar-nav">
+    <a class="nav-item active" href="/frontend/dashboard.html"><span class="nav-icon">✦</span> 콘텐츠 생성</a>
+    <a class="nav-item" href="/frontend/history.html"><span class="nav-icon">📋</span> 콘텐츠 이력</a>
+    <a class="nav-item" href="/frontend/settings.html"><span class="nav-icon">⚙</span> 설정</a>
+  </div>
+  <div class="sidebar-bottom">ContentFlow v0.1.0</div>
+</nav>
+<div class="main-wrap">
 
 <div class="layout">
 
@@ -184,6 +205,7 @@
 </div>
 
 <div class="toast" id="toast"></div>
+</div>
 
 <script>
 const API    = 'http://localhost:8000';
