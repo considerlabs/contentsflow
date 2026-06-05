@@ -224,6 +224,16 @@ async def _run_generation(
             session = result.scalar_one()
             session.status = "review"
             session.error_message = None
+            try:
+                from models import TopicProposal
+                proposal_result = await db.execute(
+                    select(TopicProposal).where(TopicProposal.session_id == session.id)
+                )
+                proposal = proposal_result.scalar_one_or_none()
+                if proposal:
+                    proposal.status = "generated"
+            except Exception:
+                pass
             await db.flush()
 
             # 노션 검수 대기 큐 등록 (실패해도 파이프라인 계속)
@@ -251,6 +261,16 @@ async def _run_generation(
                 if session:
                     session.status = "failed"
                     session.error_message = str(exc)
+                    try:
+                        from models import TopicProposal
+                        proposal_result = await fail_db.execute(
+                            select(TopicProposal).where(TopicProposal.session_id == session.id)
+                        )
+                        proposal = proposal_result.scalar_one_or_none()
+                        if proposal:
+                            proposal.status = "failed"
+                    except Exception:
+                        pass
                     await fail_db.commit()
 
 

@@ -270,7 +270,7 @@
   }
   .topic-card:hover { border-color: #9db5ff; background: #f7f9ff; }
   .topic-card.selected { border-color: var(--primary); background: #eef4ff; }
-  .topic-card.generating { opacity: .72; pointer-events: none; }
+  .topic-card.generating { opacity: .72; }
   .t-title { font-size: 14px; font-weight: 800; color: #1f2433; }
   .t-msg { font-size: 12px; color: var(--muted); margin-top: 5px; line-height: 1.5; }
   .t-badge { display: inline-block; margin-top: 8px; font-size: 11px; color: var(--primary); font-weight: 800; }
@@ -278,6 +278,14 @@
   .research-meta { font-size: 12px; color: #8b96aa; margin-bottom: 12px; line-height: 1.5; }
   .evidence-list { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
   .evidence-item { font-size: 11px; color: #7a8499; line-height: 1.4; }
+  .proposal-detail { display: flex; flex-direction: column; gap: 14px; }
+  .proposal-section { border: 1px solid var(--line); border-radius: 10px; padding: 14px; background: #f8fafc; }
+  .proposal-label { font-size: 11px; font-weight: 900; color: #7a8499; margin-bottom: 7px; text-transform: uppercase; }
+  .proposal-text { font-size: 13px; line-height: 1.65; color: #253047; white-space: pre-wrap; }
+  .proposal-evidence { display: flex; flex-direction: column; gap: 8px; }
+  .proposal-evidence a { color: var(--primary); font-size: 12px; font-weight: 800; text-decoration: none; word-break: break-all; }
+  .proposal-evidence a:hover { text-decoration: underline; }
+  .research-modal-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; width: 100%; }
 
   .ch-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .ch-chip {
@@ -646,6 +654,24 @@
   </div>
 </div>
 
+<div class="overlay" id="research-modal-overlay" onclick="if(event.target===this)closeResearchModal()">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="ch-badge blog">리서치</span>
+      <h2 id="research-modal-title">주제 상세</h2>
+      <button class="btn-ghost btn-sm" onclick="closeResearchModal()">닫기</button>
+    </div>
+    <div class="modal-body" id="research-modal-body"></div>
+    <div class="modal-footer">
+      <div id="research-modal-status" style="font-size:12px;color:#7a8499;line-height:1.5;flex:1"></div>
+      <div class="research-modal-actions">
+        <button class="btn-ghost" onclick="closeResearchModal()">취소</button>
+        <button class="btn-primary" id="btn-select-research-topic" onclick="selectCurrentResearchTopic()">이 주제로 선택·생성</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -715,6 +741,7 @@ let _genStartTime = null;
 let _clockTimer = null;
 let currentDraftId = null;
 let currentDraftChannel = null;
+let currentResearchProposalId = null;
 
 async function loadResearch() {
   const body = document.getElementById('research-body');
@@ -753,6 +780,7 @@ async function loadResearch() {
       return;
     }
     const proposals = data.proposals || [];
+    window._researchProposals = proposals;
     if (!proposals.length) {
       body.innerHTML = '<div class="empty">생성된 주제 제안이 없습니다.</div>';
       return;
@@ -763,15 +791,15 @@ async function loadResearch() {
       </div>
       <div class="topic-list">
         ${proposals.map((p, i) => `
-          <div class="topic-card ${p.status === 'generating' ? 'generating' : ''}">
+          <div class="topic-card ${p.status === 'generating' ? 'generating' : ''}" onclick="openResearchProposal('${p.id}')">
             <div class="t-title">${i + 1}. ${esc(p.title)}</div>
             <div class="t-msg">${esc(p.message || '')}</div>
             <div class="t-badge">${esc(p.rationale || '')}</div>
             <div class="evidence-list">
               ${(p.evidence || []).slice(0, 2).map(ev => `<div class="evidence-item">근거: ${esc(ev.title || ev.url || '')}</div>`).join('')}
             </div>
-            <button class="btn-primary btn-sm" style="margin-top:10px" onclick="selectResearchTopic('${p.id}')" ${p.status === 'generating' ? 'disabled' : ''}>
-              ${p.status === 'generating' ? '생성 중' : '이 주제로 4채널 생성'}
+            <button class="btn-primary btn-sm" style="margin-top:10px" onclick="event.stopPropagation();openResearchProposal('${p.id}')" ${p.status === 'generating' ? 'disabled' : ''}>
+              ${p.status === 'generating' ? '생성 중' : (p.status === 'generated' ? '생성 완료' : '상세보기·선택')}
             </button>
           </div>`).join('')}
       </div>`;
@@ -795,12 +823,85 @@ async function runMorningResearch() {
   }
 }
 
+function openResearchProposal(proposalId) {
+  const proposal = (window._researchProposals || []).find(p => p.id === proposalId);
+  if (!proposal) {
+    toast('주제 정보를 찾을 수 없습니다.', false);
+    return;
+  }
+  currentResearchProposalId = proposalId;
+  document.getElementById('research-modal-title').textContent = proposal.title || '주제 상세';
+  const statusLabel = {
+    proposed: '선택 가능',
+    selected: '선택됨',
+    generating: '초안 생성 중',
+    generated: '생성 완료',
+    failed: '생성 실패',
+  }[proposal.status] || proposal.status || '제안됨';
+  const evidence = proposal.evidence || [];
+  document.getElementById('research-modal-body').innerHTML = `
+    <div class="proposal-detail">
+      <div class="proposal-section">
+        <div class="proposal-label">핵심 메시지</div>
+        <div class="proposal-text">${esc(proposal.message || '내용 없음')}</div>
+      </div>
+      <div class="proposal-section">
+        <div class="proposal-label">선정 이유</div>
+        <div class="proposal-text">${esc(proposal.rationale || '내용 없음')}</div>
+      </div>
+      <div class="proposal-section">
+        <div class="proposal-label">근거 자료</div>
+        <div class="proposal-evidence">
+          ${evidence.length ? evidence.map((ev, i) => `
+            <div>
+              <div class="proposal-text">${i + 1}. ${esc(ev.title || ev.note || ev.url || '근거 자료')}</div>
+              ${ev.note ? `<div class="proposal-text" style="color:#687386">${esc(ev.note)}</div>` : ''}
+              ${ev.url ? `<a href="${esc(ev.url)}" target="_blank" rel="noopener noreferrer">${esc(ev.url)}</a>` : ''}
+            </div>`).join('') : '<div class="proposal-text">근거 자료가 없습니다.</div>'}
+        </div>
+      </div>
+      <div class="proposal-section">
+        <div class="proposal-label">생성 채널</div>
+        <div class="proposal-text">${(proposal.channels || ['blog','newsletter','youtube','shortform']).map(channelLabel).join(' · ')}</div>
+      </div>
+    </div>`;
+  document.getElementById('research-modal-status').textContent =
+    proposal.session_id ? `${statusLabel} · 세션 ${proposal.session_id}` : statusLabel;
+  const btn = document.getElementById('btn-select-research-topic');
+  const canSelect = !['generating', 'generated'].includes(proposal.status);
+  btn.disabled = !canSelect;
+  btn.textContent = proposal.status === 'generating'
+    ? '생성 중'
+    : (proposal.status === 'generated' ? '이미 생성됨' : '이 주제로 선택·생성');
+  document.getElementById('research-modal-overlay').classList.add('open');
+}
+
+function closeResearchModal() {
+  document.getElementById('research-modal-overlay').classList.remove('open');
+  currentResearchProposalId = null;
+}
+
+function channelLabel(ch) {
+  return { blog: '블로그', newsletter: '뉴스레터', youtube: '유튜브', shortform: '인스타그램' }[ch] || ch;
+}
+
+function selectCurrentResearchTopic() {
+  if (!currentResearchProposalId) return;
+  selectResearchTopic(currentResearchProposalId);
+}
+
 async function selectResearchTopic(proposalId) {
   try {
+    const btn = document.getElementById('btn-select-research-topic');
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = '생성 시작 중...';
+    }
     const res = await api('POST', `/api/research/proposals/${proposalId}/select`, {
       channels: ['blog', 'newsletter', 'youtube', 'shortform'],
     });
     currentSessionId = res.session_id;
+    closeResearchModal();
     showGeneratingStatus();
     pollTimer = setInterval(() => pollSession(), 4000);
     loadResearch();
@@ -973,6 +1074,7 @@ function onGenerationDone(data) {
       <button class="btn-primary" onclick="resetGenForm()">새 콘텐츠 생성</button>
     </div>
   `;
+  loadResearch();
   loadPending();
   loadOverview();
 }
