@@ -10,7 +10,7 @@ CHANNEL_LABEL = {
     "blog":       "블로그",
     "newsletter": "뉴스레터",
     "youtube":    "유튜브",
-    "shortform":  "숏폼",
+    "shortform":  "인스타그램",
 }
 
 STATUS_MAP = {

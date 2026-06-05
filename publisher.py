@@ -31,8 +31,12 @@ async def publish_draft(draft_id: str, channel_type: str, body_md: str):
         )
         channel = ch_result.scalar_one_or_none()
         if not channel:
-            draft.status = "publish_failed"
-            draft.revision_memo = "채널 설정이 없습니다."
+            if channel_type == "blog":
+                draft.status = "publish_failed"
+                draft.revision_memo = "채널 설정이 없습니다."
+            else:
+                draft.status = "approved"
+                draft.revision_memo = "채널 설정이 없어 자동 발행 없이 승인 상태로 보관합니다."
             await db.commit()
             return
 
@@ -46,6 +50,8 @@ async def publish_draft(draft_id: str, channel_type: str, body_md: str):
                 published_url = await _publish_newsletter(channel, draft.title, draft.body_html or body_md, api_key)
             elif channel_type in ("youtube", "shortform"):
                 published_url = await _save_to_drive(channel, draft.title, body_md, channel_type, api_key)
+            else:
+                raise ValueError(f"지원하지 않는 채널입니다: {channel_type}")
 
             draft.status        = "published"
             draft.published_at  = datetime.now(timezone.utc)

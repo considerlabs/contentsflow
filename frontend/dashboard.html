@@ -206,7 +206,7 @@
     <div class="modal-footer">
       <textarea id="memo" placeholder="수정 요청 내용 (수정 요청 시 입력)"></textarea>
       <div class="modal-actions">
-        <button class="btn-approve" onclick="review('approved')">✓ 승인·발행</button>
+        <button class="btn-approve" id="btn-review-approve" onclick="review('approved')">✓ 승인·발행</button>
         <button class="btn-revise"  onclick="review('revision')">✎ 수정 요청</button>
         <button class="btn-reject"  onclick="review('rejected')">✕ 반려</button>
       </div>
@@ -237,7 +237,10 @@ async function api(method, path, body) {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || `HTTP ${res.status}`);
+    const detail = Array.isArray(err.detail)
+      ? err.detail.map(item => item.msg || JSON.stringify(item)).join(', ')
+      : (typeof err.detail === 'object' ? JSON.stringify(err.detail) : err.detail);
+    throw new Error(detail || `HTTP ${res.status}`);
   }
   return res.json();
 }
@@ -298,8 +301,8 @@ function showTopicSelection(candidates) {
       <div class="ch-row">
         <div class="ch-chip selected" data-ch="blog"       onclick="toggleCh(this)">📝 블로그</div>
         <div class="ch-chip selected" data-ch="newsletter" onclick="toggleCh(this)">📧 뉴스레터</div>
-        <div class="ch-chip"          data-ch="youtube"    onclick="toggleCh(this)">🎬 유튜브</div>
-        <div class="ch-chip"          data-ch="shortform"  onclick="toggleCh(this)">📱 숏폼</div>
+        <div class="ch-chip selected" data-ch="youtube"    onclick="toggleCh(this)">🎬 유튜브</div>
+        <div class="ch-chip selected" data-ch="shortform"  onclick="toggleCh(this)">📱 인스타그램</div>
       </div>
       <button class="btn-primary" onclick="generateDrafts()">초안 생성 시작 →</button>
     </div>
@@ -362,6 +365,18 @@ async function pollSession() {
     if (data.status === 'review') {
       clearInterval(pollTimer);
       onGenerationDone(data);
+    } else if (data.status === 'failed') {
+      clearInterval(pollTimer);
+      clearInterval(_clockTimer);
+      const card = document.getElementById('gen-card');
+      card.innerHTML = `
+        <div class="card-title">✦ 생성 실패</div>
+        <div class="status-box" style="background:#fef2f2;border-color:#fecaca">
+          <div class="status-text" style="color:#dc2626">초안 생성이 중단됐어요</div>
+          <div class="status-sub">${esc(data.error_message || '알 수 없는 오류')}</div>
+        </div>
+        <button class="btn-primary" style="margin-top:12px" onclick="resetGenForm()">다시 생성</button>
+      `;
     } else {
       const el = document.getElementById('poll-status');
       if (el) el.textContent = `상태: ${data.status} · 초안 ${data.drafts?.length || 0}개 완료`;
@@ -424,7 +439,7 @@ async function loadPending() {
       list.innerHTML = '<div class="empty">검수 대기 중인 초안이 없어요.</div>';
       return;
     }
-    const CH_LABEL = { blog:'블로그', newsletter:'뉴스레터', youtube:'유튜브', shortform:'숏폼' };
+    const CH_LABEL = { blog:'블로그', newsletter:'뉴스레터', youtube:'유튜브', shortform:'인스타그램' };
     list.innerHTML = drafts.map(d => `
       <div class="draft-card${d.has_content ? '' : ' no-content'}"
            data-id="${esc(d.id)}" data-ch="${esc(d.channel_type)}" data-title="${esc(d.title||'')}">
@@ -448,16 +463,20 @@ async function loadPending() {
 
 // ── 초안 검수 모달 ─────────────────────────────────────────
 let currentDraftId = null;
+let currentDraftChannel = null;
 
 async function openDraft(id, chType, title) {
   currentDraftId = id;
+  currentDraftChannel = chType;
   document.getElementById('modal-title').textContent = title || '초안 검수';
   document.getElementById('modal-body').textContent  = '로딩 중…';
   document.getElementById('memo').value = '';
-  const CH_LABEL = { blog:'블로그', newsletter:'뉴스레터', youtube:'유튜브', shortform:'숏폼' };
+  const CH_LABEL = { blog:'블로그', newsletter:'뉴스레터', youtube:'유튜브', shortform:'인스타그램' };
   const badge = document.getElementById('modal-ch-badge');
   badge.className = `ch-badge ${chType}`;
   badge.textContent = CH_LABEL[chType] || chType;
+  document.getElementById('btn-review-approve').textContent =
+    chType === 'blog' ? '✓ 승인·발행' : '✓ 승인';
   document.getElementById('modal-overlay').classList.add('open');
 
   try {
@@ -485,6 +504,7 @@ async function openDraft(id, chType, title) {
 function closeModal() {
   document.getElementById('modal-overlay').classList.remove('open');
   currentDraftId = null;
+  currentDraftChannel = null;
 }
 
 async function deleteDraft() {
@@ -506,7 +526,8 @@ async function review(action) {
   }
   try {
     await api('POST', `/api/sessions/drafts/${currentDraftId}/review`, { action, memo: memo || null });
-    const labels = { approved: '승인·발행 처리됨', revision: '수정 요청 전송됨', rejected: '반려됨' };
+    const approvedLabel = currentDraftChannel === 'blog' ? '승인·발행 처리됨' : '승인됨';
+    const labels = { approved: approvedLabel, revision: '수정 요청 전송됨', rejected: '반려됨' };
     toast(labels[action]);
     closeModal();
     loadPending();

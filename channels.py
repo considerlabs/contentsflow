@@ -31,9 +31,12 @@ async def upsert_channel(body: ChannelCreate, db: AsyncSession = Depends(get_db)
     )
     ch = result.scalar_one_or_none()
     if ch:
+        ch.channel_name = body.channel_name
         ch.api_endpoint = body.api_endpoint
-        ch.api_key_enc  = encrypt(body.api_key_enc) if body.api_key_enc else None
+        if body.api_key_enc:
+            ch.api_key_enc = encrypt(body.api_key_enc)
         ch.extra_config = body.extra_config
+        ch.is_active = True
     else:
         data = body.dict()
         if data.get("api_key_enc"):

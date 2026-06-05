@@ -158,7 +158,7 @@ const steps = [
     html: `
       <p style="font-size:14px;color:#555;margin-bottom:16px;">사용할 채널을 선택하세요. API 키는 나중에 설정에서 입력할 수 있어요.</p>
       <div class="channel-grid">
-        <label class="channel-card" onclick="toggleChannel(this)">
+        <label class="channel-card selected" onclick="toggleChannel(this)">
           <input type="checkbox" value="blog" checked>
           <div class="ch-name">📝 블로그</div>
           <div class="ch-desc">티스토리 자동 발행</div>
@@ -168,22 +168,22 @@ const steps = [
           <div class="ch-name">📧 뉴스레터</div>
           <div class="ch-desc">스티비 자동 발송</div>
         </label>
-        <label class="channel-card" onclick="toggleChannel(this)">
-          <input type="checkbox" value="youtube">
+        <label class="channel-card selected" onclick="toggleChannel(this)">
+          <input type="checkbox" value="youtube" checked>
           <div class="ch-name">🎬 유튜브</div>
           <div class="ch-desc">스크립트 구글 드라이브 저장</div>
         </label>
-        <label class="channel-card" onclick="toggleChannel(this)">
-          <input type="checkbox" value="shortform">
-          <div class="ch-name">📱 숏폼</div>
-          <div class="ch-desc">릴스·쇼츠·틱톡 대본</div>
+        <label class="channel-card selected" onclick="toggleChannel(this)">
+          <input type="checkbox" value="shortform" checked>
+          <div class="ch-name">📱 인스타그램</div>
+          <div class="ch-desc">릴스 대본·캡션</div>
         </label>
       </div>
     `,
     required: [],
     async onNext() {
       const checked = [...document.querySelectorAll('.channel-card input:checked')];
-      const channelNames = { blog:'블로그', newsletter:'뉴스레터', youtube:'유튜브', shortform:'숏폼' };
+      const channelNames = { blog:'블로그', newsletter:'뉴스레터', youtube:'유튜브', shortform:'인스타그램' };
       for (const cb of checked) {
         await api('POST', '/api/channels/', {
           user_id: userId,

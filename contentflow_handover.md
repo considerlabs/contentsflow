@@ -1,417 +1,676 @@
 # ContentFlow 프로젝트 인수인계 문서
 
 > 작성일: 2026-06-05
+> 최종 업데이트: 2026-06-05
 > 작성자: 브라이언
-> 버전: 0.1.0
+> 현재 버전: 0.2.0
 
 ---
 
-## 1. 프로젝트 개요
+## 1. 현재 결론
 
-### 서비스 정의
-콘텐츠 발행 프로세스를 자동화하고 싶은 사람들을 대상으로,
-AI Agent를 활용해 주제 입력 → 초안 생성 → 검수 → 자동 발행까지의
-전체 파이프라인을 제공하는 SaaS 툴.
+ContentFlow는 로컬 환경에서 콘텐츠 생성, 검수, 블로그 자동 발행, 그리고 뉴스레터·유튜브·인스타그램용 재활용 초안을 만드는 MVP입니다.
 
-### 핵심 차별점
-- 사용자별 **페르소나·스타일 파일** 자동 생성 (온보딩 기반)
-- 주제 하나 입력 → 블로그·뉴스레터·유튜브·숏폼 **4채널 동시 초안 생성**
-- **로컬 LLM** (Ollama) 활용 → API 과금 없음
-- 사용자가 개입하는 지점: **주제 선택 + 최종 검수 승인**만
+현재 방향은 **블로그 글을 원문 허브로 발행하고, 같은 원본 기획 패키지를 뉴스레터·유튜브·인스타그램으로 변환하는 one source multi use 전략**입니다.
 
-### 수익 모델 (예정)
-| 단계 | 형태 | 가격 |
-|---|---|---|
-| 무료 유입 | 블로그·뉴스레터·유튜브·숏폼 콘텐츠 | 무료 |
-| 입문 | 플레이북 PDF 판매 | 1~3만원/건 |
-| 핵심 | 월 구독 멤버십 | 3~5만원/월 |
-| 프리미엄 | 1:1 컨설팅 | 10~20만원/회 |
-
-손익분기: 구독 100명 × 3만원 = 월 300만원 → 순이익 200만원 목표
+핵심 LLM은 **Ollama `qwen3.6:35b-a3b`**입니다. 이 모델명은 맞는 값이며 기본값으로 유지했습니다.
 
 ---
 
-## 2. 사업 방향
+## 2. 이번 작업에서 정리한 내용
 
-### Phase 1 — 콘텐츠 서비스로 시장 진입
-- 타겟: 50~60대 재직 중인 직장인 (퇴직 고민 중)
-- 핵심가치: "AI 몰라도 따라하면 수익 파이프라인이 생긴다"
-- 첫 번째 플레이북: "재직 중 50대가 AI로 기획문서·보고서 대필 프리랜서로 월 100만원 버는 법"
-- 운영 방식: 재직 유지 + 일 2~3시간 검수·승인만 직접
+### 완료한 수정
 
-### Phase 2 — 플랫폼으로 확장
-- Phase 1 유저베이스 기반으로 3번 아이템(시니어 Job 매칭)과 접목
-- 정보 큐레이션 + 매칭 플랫폼으로 진화
-- 매각 옵션 열어두는 구조
+- `agent.py`
+  - `qwen3.6:35b-a3b`를 기본 모델로 유지
+  - `OLLAMA_MODEL`, `OLLAMA_URL` 환경변수 지원 추가
+  - 주제 후보 생성 후 바로 채널별 작성하던 구조를 변경
+  - **원본 기획 패키지** 생성 후 블로그·뉴스레터·유튜브·인스타그램 초안으로 변환
+  - LLM JSON 응답 파싱 안정화
+  - 뉴스레터 HTML 추출 보강
+  - QC 체크 항목 확대
+  - Ollama 연결 실패, HTTP 오류, 타임아웃, 빈 응답을 사람이 읽을 수 있는 메시지로 변환
+
+- `sessions.py`
+  - 잘못된 UUID가 500으로 터지지 않도록 400 처리
+  - `/api/sessions/`에서 Ollama 오류 발생 시 500 대신 502와 원인 메시지 반환
+  - 초안 생성 실패 시 `content_sessions.status = failed`, `error_message` 저장
+  - 승인 처리 시 블로그만 자동 발행
+  - 뉴스레터·유튜브·인스타그램은 승인된 재활용 콘텐츠 자산으로 보관
+  - 지원 채널 검증 추가: `blog`, `newsletter`, `youtube`, `shortform`
+
+- `models.py`
+  - `ContentSession.error_message` 컬럼 추가
+
+- `main.py`
+  - 서버 시작 시 `content_sessions.error_message` 컬럼 보강
+  - 기존 `user_personas.topic_md` 보강 유지
+
+- `publisher.py`
+  - 블로그 채널 설정이 없으면 `publish_failed`
+  - 비블로그 채널 설정이 없어도 실패 처리하지 않고 승인 자산으로 보관
+  - 알 수 없는 채널은 명시적 오류 처리
+
+- `notion.py`, `notion_poller.py`
+  - `shortform` 표시명을 인스타그램으로 변경
+  - 노션 승인 시 블로그는 자동 발행, 비블로그는 승인 상태로 보관
+
+- `channels.py`
+  - 채널 설정 업데이트 시 API 키를 비워 저장해도 기존 키가 삭제되지 않도록 수정
+  - 기존 채널 저장 시 `is_active = True` 보강
+
+- 프론트엔드
+  - `frontend/onboarding.html`
+    - 블로그·뉴스레터·유튜브·인스타그램 4채널 기본 선택
+    - 숏폼 표기를 인스타그램으로 변경
+  - `frontend/dashboard.html`
+    - 주제 선택 후 4채널 기본 생성
+    - 생성 실패 시 `failed`와 `error_message` 표시
+    - 블로그는 `승인·발행`, 비블로그는 `승인`으로 버튼 문구 분리
+    - 백엔드 `detail` 에러 메시지 파싱 개선
+  - `frontend/history.html`
+    - 숏폼 필터를 인스타그램으로 변경
+    - `approved + published`를 `승인·발행 완료`로 집계
+  - `frontend/settings.html`
+    - 인스타그램 채널 설명을 릴스 대본·캡션 저장으로 변경
+
+### 삭제하거나 정리한 오래된 전제
+
+- `schema.sql` 파일 기준 실행 설명 삭제
+- `routers/` 폴더 구조 설명 삭제
+- `knowledge/`, `prompts/` 폴더 산출물 설명 삭제
+- Node.js 프론트엔드라는 설명 삭제
+- `qwen3:35b-a3b` 모델명 삭제
+- "콘텐츠 생성은 Claude.ai 직접"이라는 운영 전제 삭제
+- 5단계 온보딩 설명 삭제. 실제 화면은 6단계임
+- 4채널 모두 자동 발행된다는 설명 삭제. 현재 자동 발행은 블로그 중심임
 
 ---
 
-## 3. 시스템 아키텍처
+## 3. 서비스 정의
 
-### 전체 흐름
+### 목표 사용자
+
+- 50~60대 재직 중인 직장인
+- 퇴직 후 수입 단절을 걱정하는 사람
+- AI를 직접 깊게 배우기보다, 검증된 실행 흐름을 따라 콘텐츠와 부수입 파이프라인을 만들고 싶은 사람
+
+### 핵심 가치
+
+- "AI 몰라도 따라하면 수익 파이프라인이 생긴다"
+- 사용자는 키워드 입력, 주제 선택, 최종 검수에 집중
+- 시스템은 주제 후보, 원본 기획 패키지, 채널별 초안, 검수 큐 등록을 자동화
+
+### one source multi use 전략
+
+1. 블로그 글을 원문 허브로 생성
+2. 같은 원본 기획 패키지를 뉴스레터 초안으로 변환
+3. 같은 원본 기획 패키지를 유튜브 스크립트로 변환
+4. 같은 원본 기획 패키지를 인스타그램 릴스 대본·캡션으로 변환
+5. 블로그는 승인 시 자동 발행
+6. 나머지 채널은 승인된 재활용 콘텐츠 자산으로 보관
+
+---
+
+## 4. 현재 시스템 흐름
+
+```text
+사용자 입력
+  - 키워드
+  - 타겟 감정
+  - 제외할 내용
+    ↓
+오케스트레이터
+  - 주제 후보 3개 생성
+    ↓
+사용자 주제 선택
+    ↓
+원본 기획 패키지 생성
+  - core_angle
+  - reader_problem
+  - promise
+  - proof_points
+  - outline
+  - forbidden_claims
+  - cta
+  - channel_strategy
+    ↓
+채널별 초안 생성
+  - 블로그
+  - 뉴스레터
+  - 유튜브
+  - 인스타그램
+    ↓
+QC 검사
+    ↓
+DB 저장 + 노션 검수 대기 큐 등록
+    ↓
+사용자 검수
+    ↓
+블로그 승인 시 자동 발행
+뉴스레터·유튜브·인스타그램 승인 시 자산 보관
 ```
-사용자 입력 (키워드·타겟감정)
-    ↓
-오케스트레이터 에이전트 (주제 후보 3개 제안)
-    ↓
-사용자 선택
-    ↓
-채널별 에이전트 (블로그·뉴스레터·유튜브·숏폼 동시 생성)
-    ↓
-QC 자체 검토 (8개 체크리스트)
-    ↓
-노션 검수 대기 큐 등록
-    ↓
-사용자 승인 (검수·승인만 직접)
-    ↓
-자동 발행 트리거 → 채널별 발행
-```
 
-### 역할 분리
-| 역할 | 담당 |
-|---|---|
-| 콘텐츠 생성·검수 | Claude.ai (브라이언 님 직접) |
-| 자동화 파이프라인 | 로컬 Python 백엔드 (Mac Studio M1) |
-| LLM 엔진 | Ollama — qwen3:35b-a3b |
-| 검수 관리 | 노션 데이터베이스 |
-| 데이터 저장 | PostgreSQL 17/18 |
+---
 
-### 기술 스택
+## 5. 기술 스택
+
 | 영역 | 기술 |
 |---|---|
-| 백엔드 | Python · FastAPI · SQLAlchemy (async) |
-| DB | PostgreSQL 17/18 · asyncpg |
-| LLM | Ollama · qwen3:35b-a3b |
-| 프론트엔드 | Node.js · HTML/CSS/JS |
-| 검수 관리 | Notion API |
-| 발행 연동 | 티스토리·스티비·구글 드라이브 REST API |
-| 하드웨어 | Mac Studio M1 32GB RAM |
+| 백엔드 | Python, FastAPI, SQLAlchemy async |
+| DB | PostgreSQL, asyncpg |
+| LLM | Ollama `qwen3.6:35b-a3b` |
+| 프론트엔드 | 정적 HTML/CSS/JS |
+| 검수 큐 | Notion API |
+| 발행 | 블로그 REST API 중심 |
+| 보안 | `cryptography.Fernet` 기반 API 키 암호화 |
 
 ---
 
-## 4. 파일 구조
+## 6. 실제 파일 구조
 
-```
-contentflow/
+```text
+contentsflow/
 ├── main.py                  # FastAPI 앱 진입점
 ├── database.py              # PostgreSQL 비동기 연결
-├── models.py                # SQLAlchemy ORM (9개 테이블)
-├── agent.py                 # 오케스트레이터 + 채널별 에이전트
-├── publisher.py             # 채널별 자동 발행
+├── models.py                # SQLAlchemy ORM 모델
+├── agent.py                 # 주제 후보, 원본 기획 패키지, 채널별 초안 생성
+├── sessions.py              # 핵심 콘텐츠 생성·검수 API
+├── drafts.py                # 검수 대기·이력 초안 조회
+├── publisher.py             # 블로그 자동 발행 및 채널 발행 함수
+├── notion.py                # 노션 검수 큐 등록·상태 업데이트
+├── notion_poller.py         # 노션 승인·수정 상태 폴링
+├── crypto.py                # API 키 암호화·복호화
+├── users.py                 # 사용자 CRUD
+├── personas.py              # 온보딩 기반 페르소나 생성·수정
+├── categories.py            # 카테고리 CRUD
+├── keywords.py              # 키워드 CRUD
+├── channels.py              # 채널 설정 저장
 ├── requirements.txt
-├── schema.sql               # PostgreSQL DDL 스키마
-├── routers/
-│   ├── users.py
-│   ├── personas.py          # 온보딩 → 페르소나 생성·수정
-│   ├── categories.py
-│   ├── keywords.py
-│   ├── channels.py          # 발행 채널 설정
-│   ├── sessions.py          # 핵심 — 파이프라인 전체 흐름
-│   └── drafts.py            # 검수 대기 초안 조회
-├── knowledge/               # 지식 베이스 파일
-│   ├── persona.md           # 브라이언 에디터 페르소나
-│   ├── style.md             # 문체·구조 가이드
-│   └── topic.md             # 플레이북 주제·검증 사례
-├── prompts/                 # 에이전트 프롬프트
-│   ├── orchestrator_prompt.md
-│   ├── blog_agent_prompt.md
-│   └── youtube_agent_prompt.md
+├── contentflow_handover.md
 └── frontend/
-    ├── onboarding.html      # 온보딩 5단계 UI
-    └── settings.html        # 설정 화면 UI (3개 탭)
+    ├── onboarding.html      # 온보딩
+    ├── dashboard.html       # 콘텐츠 생성·검수
+    ├── settings.html        # 카테고리·채널·페르소나 설정
+    └── history.html         # 콘텐츠 이력
 ```
+
+현재 존재하지 않는 파일 또는 폴더:
+
+- `schema.sql`
+- `routers/`
+- `knowledge/`
+- `prompts/`
+- `blog_post_20260604.md`
 
 ---
 
-## 5. 데이터베이스 스키마
+## 7. 데이터베이스 모델
 
-### 테이블 목록 (9개)
+현재 ORM 기준 테이블은 8개입니다.
 
 | 테이블 | 역할 |
 |---|---|
-| `users` | 사용자 계정·온보딩 완료 여부 |
-| `user_personas` | 온보딩 답변 원본 + persona.md·style.md |
+| `users` | 사용자 계정, 온보딩 완료 여부 |
+| `user_personas` | 온보딩 원본 답변, persona/style/topic 문서 |
 | `categories` | 사용자별 카테고리 |
-| `keywords` | 카테고리별 키워드·타겟 감정·경험 메모 |
-| `channel_configs` | 발행 채널 연동 설정 (API 키 암호화) |
-| `content_sessions` | 콘텐츠 생성 요청 단위·주제 후보·선택 결과 |
-| `content_drafts` | 채널별 초안·QC 결과·검수 상태·발행 URL |
+| `keywords` | 카테고리별 키워드, 감정, 메모, 제외 주제 |
+| `channel_configs` | 발행 채널 설정, API 키 암호화 저장 |
+| `content_sessions` | 콘텐츠 생성 요청 단위, 주제 후보, 선택 주제, 상태, 오류 메시지 |
+| `content_drafts` | 채널별 초안, QC 결과, 상태, 노션 페이지, 발행 URL |
 | `review_logs` | 승인·수정·반려 이력 |
 
-### content_drafts 상태 전이
+### 주요 상태
+
+`content_sessions.status`
+
+```text
+pending → topic_select → generating → review
+                            ↘ failed
 ```
-pending → review → approved → published
-                ↘ revision → (재생성)
+
+`content_drafts.status`
+
+```text
+pending → review → approved
+                ↘ revision
                 ↘ rejected
+                ↘ published
+                ↘ publish_failed
 ```
 
-### 핵심 설계 원칙
-- `user_personas.raw_answers`: JSONB로 온보딩 원본 저장 → 언제든 파일 재생성 가능
-- `content_sessions` → `content_drafts` 1:N: 주제 하나로 4채널 초안 독립 관리
-- `review_logs`: 모든 검수 이력 누적 → 품질 분석 가능
+### 자동 컬럼 보강
+
+서버 시작 시 `main.py`에서 다음 컬럼을 보강합니다.
+
+- `user_personas.topic_md`
+- `content_sessions.error_message`
 
 ---
 
-## 6. 에이전트 구성
+## 8. 핵심 API
 
-### 오케스트레이터 역할
-1. 지식 베이스 3개 파일 로드 (persona.md · style.md · topic.md)
-2. 사용자 입력 분석 → 주제 후보 3개 제안
-3. 선택된 주제를 채널별 에이전트에 분배
-4. 결과물 QC 검토 후 검수 대기 큐 등록
+### 콘텐츠 생성
 
-### 채널별 에이전트
-
-| 에이전트 | 출력물 | 분량 |
-|---|---|---|
-| 블로그 | SEO 최적화 포스트 (마크다운) | 1,200~1,500자 |
-| 뉴스레터 | 이메일 초안 (MD + HTML) | 읽기 5분 이내 |
-| 유튜브 | 스크립트 + 썸네일 문구 3안 | 7~10분 분량 |
-| 숏폼 | 60초 대본 (릴스·쇼츠·틱톡) | 60초 이내 |
-
-> 뉴스레터 에이전트는 `weekly-newsletter` 스킬을 호출하는 방식으로 연동
-
-### QC 자체 검토 체크리스트
-- 금지 표현 없음 (쉽습니다·간단합니다·누구나)
-- 검증 수치만 사용
-- 후킹 도입이 독자 감정을 건드리는가
-- 단계별 실행 방법이 구체적인가
-- 오늘 당장 할 수 있는 것 1가지
-- CTA 자연스럽게 연결
-- 기술 용어 괄호 설명 포함
-- 분량 기준 충족
-
----
-
-## 7. 지식 베이스 파일
-
-### persona.md 주요 내용
-- 이름: 브라이언
-- 경력: IT기술영업·보험영업·스타트업 창업·서비스기획 (25년)
-- 핵심 정체성: "직접 해본 것만 전달하는 사람"
-- 절대 금지: "쉽습니다·간단합니다·누구나" 류 과장, 자기자랑 톤, 기술 용어 남발
-- 강점 자산: AI로 보고서 작성 시간 80% 절감 직접 검증
-
-### style.md 주요 내용
-- 말투: 해요체, 짧은 문장(40자 이내), 구체적 수치
-- 구조 원칙: ① 공감 → ② 경험 → ③ 실행
-- 채널별 길이 기준 명시
-
-### topic.md 주요 내용
-- 핵심 포지셔닝: "재직 중 50~60대가 AI Agent로 월 100~200만원 사이드잡 수익 만들기"
-- Playbook #1 (검증 완료): AI로 수익화 파이프라인 만들기
-- 절대 포함 금지: 검증되지 않은 수치, 코딩 필요 방법, 초기비용 높은 툴 (월 2만원 초과)
-- SEO 키워드 목록 포함
-
----
-
-## 8. API 엔드포인트
-
-### 핵심 파이프라인
-```
-POST   /api/sessions/                     세션 생성 + 주제 후보 3개 반환
-POST   /api/sessions/{id}/generate        주제 선택 + 백그라운드 초안 생성
-GET    /api/sessions/{id}                 생성 상태 폴링
-POST   /api/sessions/drafts/{id}/review   승인·수정·반려 → 자동 발행 트리거
+```text
+POST /api/sessions/
 ```
 
-### 설정 관리
+역할:
+
+- 사용자 페르소나 조회
+- 등록 키워드 조회
+- Ollama로 주제 후보 3개 생성
+- 세션 저장
+
+오류 처리:
+
+- 잘못된 UUID: 400
+- 페르소나 없음: 404
+- Ollama 연결/모델/타임아웃 문제: 502
+
+```text
+POST /api/sessions/{session_id}/generate
 ```
-POST   /api/users/                        사용자 생성
-GET    /api/users/{id}                    사용자 조회
-POST   /api/personas/generate            온보딩 답변 → 페르소나 파일 생성
-PUT    /api/personas/{id}                페르소나 파일 수정
-GET    /api/categories/                  카테고리 목록
-POST   /api/categories/                  카테고리 추가
-DELETE /api/categories/{id}              카테고리 삭제
-GET    /api/keywords/                    키워드 목록
-POST   /api/keywords/                    키워드 추가
-DELETE /api/keywords/{id}               키워드 삭제
-POST   /api/channels/                    채널 연동 설정
-GET    /api/drafts/pending               검수 대기 초안 목록
-GET    /api/drafts/{id}                  초안 상세 조회
+
+역할:
+
+- 선택 주제 저장
+- 채널 검증
+- 백그라운드 초안 생성 시작
+- 원본 기획 패키지 생성
+- 채널별 초안 생성
+- QC 검사
+- DB 저장
+- 노션 큐 등록
+
+```text
+GET /api/sessions/{session_id}
 ```
 
----
+역할:
 
-## 9. 노션 검수 대기 큐
+- 생성 상태 폴링
+- `failed` 상태일 때 `error_message` 반환
 
-### 데이터베이스 구조
-- URL: https://app.notion.com/p/773ac5a5438246d3ab5921e69d9872d1
-- Data Source ID: cd24d74a-2e53-4f8b-8d54-d4abeda56955
-
-### 컬럼 구성
-| 컬럼 | 타입 | 설명 |
-|---|---|---|
-| 콘텐츠 제목 | Title | 초안 제목 |
-| 상태 | Select | 검수 대기·승인·수정 필요·발행 완료 |
-| 채널 | Select | 블로그·뉴스레터·유튜브·숏폼 |
-| 생성 일시 | Created Time | 자동 |
-| 주제 키워드 | Text | 입력 키워드 |
-| 파일명 | Text | 로컬 파일명 |
-| 수정 메모 | Text | 수정 요청 내용 |
-| 발행 링크 | URL | 발행 후 링크 |
-
-### 뷰 구성
-- 기본 테이블 뷰: 전체 목록
-- 📋 상태별 보드: 칸반 형태
-- 🔔 검수 대기만 보기: 매일 열어보는 뷰
-
-### 검수 워크플로우
+```text
+POST /api/sessions/drafts/{draft_id}/review
 ```
-에이전트 초안 생성
-→ 노션 "검수 대기" 자동 등록
-→ 브라이언 님이 🔔 검수 대기만 보기 열람
-→ 승인: 상태를 "승인"으로 변경 → 자동 발행 트리거
-→ 수정: 수정 메모 입력 후 "수정 필요"로 변경
-→ 발행 완료 후: "발행 완료" + 발행 링크 입력
+
+역할:
+
+- `approved`, `revision`, `rejected` 처리
+- 블로그 승인 시 자동 발행
+- 비블로그 승인 시 승인 자산으로 보관
+
+### 기타 API
+
+```text
+POST   /api/users/
+GET    /api/users/{id}
+POST   /api/personas/generate
+GET    /api/personas/?user_id={id}
+PUT    /api/personas/{id}
+GET    /api/categories/?user_id={id}
+POST   /api/categories/
+DELETE /api/categories/{id}
+GET    /api/keywords/?user_id={id}
+POST   /api/keywords/
+DELETE /api/keywords/{id}
+GET    /api/channels/?user_id={id}
+POST   /api/channels/
+GET    /api/drafts/pending?user_id={id}
+GET    /api/drafts/published?user_id={id}
+GET    /api/drafts/{id}
+DELETE /api/drafts/{id}
 ```
 
 ---
 
-## 10. 온보딩 화면 (5단계)
+## 9. 프론트엔드 화면
 
-| 단계 | 수집 정보 | DB 저장 위치 |
-|---|---|---|
-| Step 1 | 이름·경력·콘텐츠 목적 | `users` + `user_personas.raw_answers` |
-| Step 2 | 독자층·고민·불안 | `user_personas.raw_answers` |
-| Step 3 | 말투·금지표현·톤·검증 경험 | → `persona.md` + `style.md` 생성 |
-| Step 4 | 채널 선택·발행 주기 | `channel_configs` |
-| Step 5 | 첫 키워드·감정·제외사항 | `keywords` + `content_sessions` 초기화 |
+### `frontend/onboarding.html`
 
-온보딩 완료 시 LLM이 답변을 분석해서 persona.md·style.md 자동 생성 후 PostgreSQL 저장.
+현재 6단계입니다.
+
+| 단계 | 내용 |
+|---|---|
+| 1 | 이름, 이메일, 경력, 콘텐츠 목적 |
+| 2 | 독자층, 고민, 불안 |
+| 3 | 말투, 금지 표현, 검증 경험 |
+| 4 | 콘텐츠 전략, 포지셔닝, 플레이북, SEO, 금지 내용 |
+| 5 | 발행 채널 선택 |
+| 6 | 첫 카테고리와 키워드 |
+
+특이사항:
+
+- 4채널이 기본 선택됨
+- 선택 채널은 `channel_configs`에 저장
+
+### `frontend/dashboard.html`
+
+역할:
+
+- 키워드 기반 주제 후보 생성
+- 주제 선택
+- 4채널 기본 생성
+- 생성 상태 폴링
+- 실패 시 `error_message` 표시
+- 검수 대기 초안 조회
+- 초안 상세 모달
+- 승인, 수정 요청, 반려 처리
+
+버튼 동작:
+
+- 블로그: `승인·발행`
+- 뉴스레터·유튜브·인스타그램: `승인`
+
+### `frontend/settings.html`
+
+역할:
+
+- 카테고리·키워드 관리
+- 채널 설정 저장
+- persona/style/topic 편집
+
+채널 설정 주의:
+
+- API 키 입력란을 비워 저장해도 기존 키는 삭제되지 않음
+- 연결 테스트 버튼은 아직 실제 테스트 미구현
+
+### `frontend/history.html`
+
+역할:
+
+- 전체 생성 이력 조회
+- 채널 필터
+- 검색
+- 본문 모달
+- 발행 링크 표시
+
+집계:
+
+- `승인·발행 완료`는 `approved + published` 합산
 
 ---
 
-## 11. 설정 화면 (3개 탭)
+## 10. 노션 검수 큐
 
-### 탭 1 — 카테고리·키워드
-- 카테고리 추가 (이름 + 색상 선택)
-- 아코디언으로 펼치면 키워드 목록
-- Enter 또는 추가 버튼으로 키워드 등록
-- 키워드별 사용 횟수 표시
+### 설정
 
-### 탭 2 — 발행 채널
-- 블로그·뉴스레터·유튜브·숏폼 4개 카드
-- 연동 상태 배지 (연동됨/미연동)
-- API 키 암호화 입력 + 연결 테스트
-- 발행 주기 설정
+```text
+NOTION_API_KEY
+NOTION_DB_ID=cd24d74a-2e53-4f8b-8d54-d4abeda56955
+```
 
-### 탭 3 — 페르소나·스타일
-- 온보딩 생성 파일 직접 수정
-- persona.md · style.md 인라인 편집
-- 온보딩 재시작 버튼
+### 상태 매핑
 
----
+| 내부 상태 | 노션 표시 |
+|---|---|
+| `approved` | 승인 |
+| `revision` | 수정 필요 |
+| `rejected` | 수정 필요 |
+| `published` | 발행 완료 |
 
-## 12. 발행 채널 연동 현황
+### 노션 승인 처리
 
-| 채널 | 연동 방식 | 상태 |
-|---|---|---|
-| 블로그 (티스토리) | REST API + Bearer Token | ✅ 설계 완료 |
-| 뉴스레터 (스티비) | API Key + 리스트 ID | ✅ 설계 완료 |
-| 유튜브 스크립트 | 구글 드라이브 API | ✅ 설계 완료 |
-| 숏폼 대본 | 노션 API | ✅ 설계 완료 |
+- 노션 상태가 `승인`이고 DB 초안이 `review`일 때 처리
+- 블로그는 자동 발행
+- 뉴스레터·유튜브·인스타그램은 `approved`로 저장
 
 ---
 
-## 13. 로컬 실행 방법
+## 11. 발행 전략
 
-### 사전 요구사항
+### 현재 운영 기준
+
+| 채널 | 현재 처리 |
+|---|---|
+| 블로그 | 승인 시 자동 발행 시도 |
+| 뉴스레터 | 초안 생성 후 승인 자산으로 보관 |
+| 유튜브 | 스크립트 생성 후 승인 자산으로 보관 |
+| 인스타그램 | 릴스 대본·캡션 생성 후 승인 자산으로 보관 |
+
+### 구현상 남아 있는 발행 함수
+
+`publisher.py`에는 다음 함수가 있습니다.
+
+- `_publish_blog`
+- `_publish_newsletter`
+- `_save_to_drive`
+
+다만 현재 검수 API에서는 블로그만 자동 발행합니다. 비블로그 자동 발행은 실제 API 계약 검증 후 켜는 것이 안전합니다.
+
+---
+
+## 12. 로컬 실행 방법
+
+### 1. PostgreSQL 준비
+
 ```bash
-# Ollama 실행 확인
-ollama run qwen3:35b-a3b
-
-# PostgreSQL DB 생성
 createdb contentflow
 ```
 
-### 백엔드 실행
+`.env` 예시:
+
 ```bash
-cd contentflow
-pip install -r requirements.txt
-
-# .env 파일 생성
-echo "DATABASE_URL=postgresql+asyncpg://postgres:password@localhost:5432/contentflow" > .env
-
-# 스키마 적용
-psql -d contentflow -f schema.sql
-
-# 서버 실행
-python main.py
-# → http://localhost:8000
-# → http://localhost:8000/docs (Swagger UI)
+DATABASE_URL=postgresql+asyncpg://postgres:password@localhost:5432/contentflow
+ENCRYPTION_KEY=
+NOTION_API_KEY=
+NOTION_DB_ID=cd24d74a-2e53-4f8b-8d54-d4abeda56955
+OLLAMA_MODEL=qwen3.6:35b-a3b
+OLLAMA_URL=http://localhost:11434/api/generate
 ```
 
-### 프론트엔드 실행
+`ENCRYPTION_KEY`는 선택값입니다. 없으면 API 키가 평문 저장됩니다.
+
+### 2. Ollama 실행
+
 ```bash
-# 브라우저에서 직접 열기
-open frontend/onboarding.html
-open frontend/settings.html
+ollama serve
+ollama run qwen3.6:35b-a3b
+```
+
+모델 확인:
+
+```bash
+curl http://localhost:11434/api/tags
+```
+
+현재 확인된 모델:
+
+```text
+qwen3.6:35b-a3b
+```
+
+### 3. FastAPI 실행
+
+```bash
+python3 main.py
+```
+
+기본 주소:
+
+```text
+http://localhost:8000
+http://localhost:8000/docs
+http://localhost:8000/frontend/dashboard.html
+```
+
+### 4. 현재 실행 확인 결과
+
+2026-06-05 확인 기준:
+
+- FastAPI: `http://localhost:8000/health` 정상
+- Ollama: `http://localhost:11434/api/tags` 정상
+- `qwen3.6:35b-a3b` 모델 존재 확인
+
+---
+
+## 13. 최근 테스트 결과
+
+실행한 검증:
+
+```bash
+env PYTHONPYCACHEPREFIX=/private/tmp/cf_pycache python3 -m py_compile *.py
+```
+
+결과:
+
+- Python 문법 검사 통과
+
+```bash
+node ... frontend script syntax check
+```
+
+결과:
+
+- `frontend/onboarding.html`
+- `frontend/dashboard.html`
+- `frontend/settings.html`
+- `frontend/history.html`
+
+위 4개 HTML의 script 문법 검사 통과
+
+FastAPI 오류 처리 테스트:
+
+```text
+POST /api/sessions/
+body: {"user_id": "bad-id", "input_keyword": "test"}
+```
+
+결과:
+
+```text
+400 {'detail': 'user_id 값이 올바른 UUID가 아닙니다.'}
+```
+
+Ollama 꺼진 상태의 함수 테스트:
+
+```text
+Ollama에 연결할 수 없습니다. Ollama 서버를 실행하고 qwen3.6:35b-a3b 모델을 준비해 주세요.
 ```
 
 ---
 
-## 14. 다음 개발 단계 (미완성 항목)
+## 14. 알려진 리스크
 
-### 즉시 시작 가능
-- [ ] 숏폼 에이전트 프롬프트 작성 (`shortform_agent_prompt.md`)
-- [ ] 노션 API 연동 코드 (초안 자동 등록)
-- [ ] 온보딩 HTML → FastAPI 백엔드 실제 연결
-- [ ] 설정 HTML → FastAPI 백엔드 실제 연결
+### 1. 인증 없음
 
-### 중기 개발
-- [ ] Node.js 프론트엔드 (대시보드·콘텐츠 생성 화면)
-- [ ] API 키 암호화 모듈 (cryptography 라이브러리)
-- [ ] 노션 상태 변경 감지 → 자동 발행 트리거 (폴링 or 웹훅)
-- [ ] 뉴스레터 weekly-newsletter 스킬 연동
+현재는 `localStorage.cf_user_id` 기반입니다. 외부 공개용 SaaS로 쓰면 안 됩니다.
 
-### 장기 개발
-- [ ] 다중 사용자 인증 (JWT)
-- [ ] 콘텐츠 성과 분석 대시보드
-- [ ] Phase 2 — 시니어 Job 매칭 플랫폼 연동
+필요한 작업:
+
+- JWT 또는 세션 기반 인증
+- 사용자별 데이터 접근 권한 검증
+
+### 2. 실제 외부 발행 API 미검증
+
+블로그, 뉴스레터, 구글 드라이브 API 함수는 있지만 실제 API 계약 검증이 필요합니다.
+
+필요한 작업:
+
+- 티스토리 실제 발행 테스트
+- 스티비 실제 API 테스트
+- 구글 드라이브 multipart 업로드 테스트
+- 실패 시 사용자에게 표시되는 메시지 개선
+
+### 3. QC는 아직 규칙 기반
+
+현재 QC는 문자열과 형식 중심입니다. 고품질 콘텐츠 검수로는 부족합니다.
+
+필요한 작업:
+
+- LLM 기반 2차 QC
+- 금지어, 검증 수치, 독자 감정, 실행 가능성 평가 분리
+- QC 실패 시 자동 수정 제안
+
+### 4. 마이그레이션 체계 없음
+
+현재는 `create_all`과 `ALTER TABLE IF NOT EXISTS`로 보강합니다.
+
+필요한 작업:
+
+- Alembic 도입
+- 스키마 변경 이력 관리
+
+### 5. 프론트엔드는 정적 HTML
+
+현재는 빠른 MVP에는 적합하지만 유지보수성이 낮습니다.
+
+필요한 작업:
+
+- 공통 API 클라이언트 분리
+- 공통 사이드바/토스트/모달 컴포넌트화
+- 빌드 도구 도입 여부 검토
 
 ---
 
-## 15. 주요 설계 결정 사항 (의사결정 로그)
+## 15. 다음 작업 우선순위
 
-| 결정 | 이유 |
-|---|---|
-| 로컬 LLM 사용 | Claude Pro 구독 유지 + API 과금 없음 |
-| 콘텐츠 생성은 Claude.ai 직접 | qwen3:35b 품질이 Claude API 수준 미달 |
-| 노션으로 검수 관리 | 모바일 검수 가능, 이미 연결됨 |
-| FastAPI 비동기 구조 | 초안 생성이 오래 걸리므로 백그라운드 태스크 필수 |
-| JSONB로 raw_answers 저장 | 온보딩 질문 변경 시에도 재분석 가능 |
-| 1:N 세션→초안 구조 | 채널별 초안을 독립적으로 승인·반려 가능 |
+### 1순위
+
+- 실제 콘텐츠 생성 엔드투엔드 테스트
+  - 온보딩 완료 사용자
+  - 키워드 입력
+  - 주제 후보 생성
+  - 4채널 초안 생성
+  - 노션 등록
+  - 블로그 승인 발행
+
+### 2순위
+
+- 블로그 발행 API 실제 계약 검증
+- 발행 실패 메시지 UI 개선
+- `publish_failed` 상태의 재시도 버튼 추가
+
+### 3순위
+
+- LLM 기반 QC 고도화
+- 생성 결과 품질 평가 로그 저장
+- 성과 분석용 필드 추가
+
+### 4순위
+
+- 인증
+- 배포
+- 결제 또는 멤버십 연동
 
 ---
 
 ## 16. 산출물 목록
 
-| 파일명 | 종류 | 설명 |
-|---|---|---|
-| `schema.sql` | SQL | PostgreSQL DDL (9개 테이블) |
-| `main.py` | Python | FastAPI 진입점 |
-| `database.py` | Python | DB 연결 |
-| `models.py` | Python | ORM 모델 |
-| `agent.py` | Python | 오케스트레이터·에이전트 |
-| `publisher.py` | Python | 자동 발행 모듈 |
-| `routers/sessions.py` | Python | 핵심 파이프라인 API |
-| `routers/personas.py` | Python | 페르소나 생성 API |
-| `routers/categories.py` | Python | 카테고리 CRUD |
-| `routers/keywords.py` | Python | 키워드 CRUD |
-| `routers/users.py` | Python | 사용자 CRUD |
-| `routers/channels.py` | Python | 채널 설정 API |
-| `routers/drafts.py` | Python | 초안 조회 API |
-| `requirements.txt` | Text | 의존성 목록 |
-| `onboarding.html` | HTML | 온보딩 5단계 UI |
-| `settings.html` | HTML | 설정 화면 UI |
-| `knowledge/persona.md` | Markdown | 브라이언 페르소나 |
-| `knowledge/style.md` | Markdown | 문체·구조 가이드 |
-| `knowledge/topic.md` | Markdown | 플레이북 주제·사례 |
-| `prompts/orchestrator_prompt.md` | Markdown | 오케스트레이터 프롬프트 |
-| `prompts/blog_agent_prompt.md` | Markdown | 블로그 에이전트 프롬프트 |
-| `prompts/youtube_agent_prompt.md` | Markdown | 유튜브 에이전트 프롬프트 |
-| `blog_post_20260604.md` | Markdown | 테스트 블로그 초안 (검수 완료) |
-| `contentflow_handover.md` | Markdown | 본 인수인계 문서 |
+| 파일명 | 설명 |
+|---|---|
+| `main.py` | FastAPI 진입점, 테이블 생성 및 컬럼 보강 |
+| `database.py` | DB 연결 |
+| `models.py` | ORM 모델 |
+| `agent.py` | LLM 호출, 주제 후보, 원본 기획 패키지, 채널별 초안 생성 |
+| `sessions.py` | 핵심 콘텐츠 생성·검수 API |
+| `drafts.py` | 검수 대기·발행 이력 조회 |
+| `publisher.py` | 발행 함수 |
+| `notion.py` | 노션 페이지 생성·상태 업데이트 |
+| `notion_poller.py` | 노션 상태 폴링 |
+| `crypto.py` | API 키 암호화·복호화 |
+| `users.py` | 사용자 API |
+| `personas.py` | 페르소나 API |
+| `categories.py` | 카테고리 API |
+| `keywords.py` | 키워드 API |
+| `channels.py` | 채널 설정 API |
+| `frontend/onboarding.html` | 온보딩 화면 |
+| `frontend/dashboard.html` | 콘텐츠 생성·검수 화면 |
+| `frontend/settings.html` | 설정 화면 |
+| `frontend/history.html` | 콘텐츠 이력 화면 |
+| `requirements.txt` | Python 의존성 |
+| `contentflow_handover.md` | 본 문서 |
+
+---
+
+## 17. 운영 메모
+
+- 현재 FastAPI 서버는 8000 포트에서 실행 확인됨
+- 현재 Ollama 서버는 11434 포트에서 실행 확인됨
+- 8000 포트가 이미 점유되어 있으면 기존 Python/uvicorn 서버가 떠 있을 가능성이 높음
+- `python3 main.py`는 `reload=True`라 파일 감시 권한 이슈가 날 수 있음
+- 개발 중 샌드박스 환경에서는 `uvicorn main:app --host 0.0.0.0 --port 8000`처럼 reload 없이 실행하는 편이 안정적
 

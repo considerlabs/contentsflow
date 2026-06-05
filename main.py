@@ -21,6 +21,9 @@ async def lifespan(app: FastAPI):
         await conn.execute(text(
             "ALTER TABLE user_personas ADD COLUMN IF NOT EXISTS topic_md TEXT NOT NULL DEFAULT ''"
         ))
+        await conn.execute(text(
+            "ALTER TABLE content_sessions ADD COLUMN IF NOT EXISTS error_message TEXT"
+        ))
     import asyncio
     from notion_poller import run_poller
     asyncio.create_task(run_poller())

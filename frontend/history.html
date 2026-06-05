@@ -169,7 +169,7 @@
       </div>
       <div class="stat-card s-done">
         <div class="stat-num" id="s-published">-</div>
-        <div class="stat-label">발행 완료</div>
+        <div class="stat-label">승인·발행 완료</div>
       </div>
       <div class="stat-card s-revision">
         <div class="stat-num" id="s-revision">-</div>
@@ -192,7 +192,7 @@
         <button class="filter-btn" data-ch="blog">블로그</button>
         <button class="filter-btn" data-ch="newsletter">뉴스레터</button>
         <button class="filter-btn" data-ch="youtube">유튜브</button>
-        <button class="filter-btn" data-ch="shortform">숏폼</button>
+        <button class="filter-btn" data-ch="shortform">인스타그램</button>
       </div>
     </div>
 
@@ -244,7 +244,7 @@ if (!userId) {
   location.href = '/frontend/onboarding.html';
 }
 
-const CH_LABEL = { blog:'블로그', newsletter:'뉴스레터', youtube:'유튜브', shortform:'숏폼' };
+const CH_LABEL = { blog:'블로그', newsletter:'뉴스레터', youtube:'유튜브', shortform:'인스타그램' };
 const ST_INFO  = {
   review:         ['검수 대기', 'review'],
   approved:       ['승인됨',   'approved'],
@@ -283,7 +283,7 @@ function fmtMs(ms) {
 function updateStats(drafts) {
   document.getElementById('s-total').textContent     = drafts.length;
   document.getElementById('s-review').textContent    = drafts.filter(d => d.status === 'review').length;
-  document.getElementById('s-published').textContent = drafts.filter(d => d.status === 'published').length;
+  document.getElementById('s-published').textContent = drafts.filter(d => ['approved', 'published'].includes(d.status)).length;
   document.getElementById('s-revision').textContent  = drafts.filter(d => d.status === 'revision').length;
 }
 

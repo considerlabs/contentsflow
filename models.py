@@ -111,6 +111,7 @@ class ContentSession(Base):
     topic_candidates = Column(JSON)   # 오케스트레이터가 제안한 주제 후보 3개
     selected_topic   = Column(JSON)   # 사용자가 선택한 주제
     status           = Column(String(50), default="pending")
+    error_message    = Column(Text)
     created_at       = Column(DateTime(timezone=True), server_default=func.now())
     updated_at       = Column(DateTime(timezone=True), onupdate=func.now())
 

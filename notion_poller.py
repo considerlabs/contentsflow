@@ -60,8 +60,12 @@ async def _process_approved():
                 )
                 draft = result.scalar_one_or_none()
                 if draft and draft.status == "review":
-                    from publisher import publish_draft
-                    await publish_draft(str(draft.id), draft.channel_type, draft.body_md)
+                    if draft.channel_type == "blog":
+                        from publisher import publish_draft
+                        await publish_draft(str(draft.id), draft.channel_type, draft.body_md)
+                    else:
+                        draft.status = "approved"
+                        await db.commit()
         except Exception as e:
             print(f"[poller] 발행 실패 {draft_id}: {e}")
 
