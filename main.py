@@ -12,11 +12,12 @@ from contextlib import asynccontextmanager
 import uvicorn
 
 from database import engine, Base
-import users, personas, categories, keywords, channels, sessions, drafts, research
+import users, personas, categories, keywords, channels, sessions, drafts, research, settings_api
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     from sqlalchemy import text
+    settings_api.apply_saved_settings()
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         await conn.execute(text(
@@ -65,7 +66,8 @@ app.include_router(keywords.router,   prefix="/api/keywords",   tags=["keywords"
 app.include_router(channels.router,   prefix="/api/channels",   tags=["channels"])
 app.include_router(sessions.router,   prefix="/api/sessions",   tags=["sessions"])
 app.include_router(drafts.router,     prefix="/api/drafts",     tags=["drafts"])
-app.include_router(research.router,    prefix="/api/research",   tags=["research"])
+app.include_router(research.router,      prefix="/api/research",   tags=["research"])
+app.include_router(settings_api.router, prefix="/api/settings",  tags=["settings"])
 
 @app.get("/health")
 async def health(): return {"status": "ok"}

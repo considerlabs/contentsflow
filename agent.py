@@ -7,8 +7,13 @@ import re
 import time
 import httpx
 
-OLLAMA_URL   = os.getenv("OLLAMA_URL", "http://localhost:11434/api/generate")
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen3.6:35b-a3b")
+OLLAMA_URL     = os.getenv("OLLAMA_URL", "http://localhost:11434/api/generate")
+OLLAMA_MODEL   = os.getenv("OLLAMA_MODEL", "qwen3.6:35b-a3b")
+LLM_PROVIDER   = os.getenv("LLM_PROVIDER", "ollama")   # ollama | claude | gemini
+CLAUDE_MODEL   = os.getenv("CLAUDE_MODEL", "claude-sonnet-4-6")
+CLAUDE_API_KEY = os.getenv("CLAUDE_API_KEY", "")
+GEMINI_MODEL   = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 SUPPORTED_CHANNELS = ("blog", "newsletter", "youtube", "shortform")
 
 
@@ -92,8 +97,17 @@ def load_knowledge(user_id: str, persona_md: str, style_md: str, topic_keywords:
     return "\n\n".join(parts)
 
 
-# ── Ollama 호출 ──────────────────────────────
+# ── LLM 호출 ─────────────────────────────────
 async def call_llm(prompt: str, system: str = "", num_predict: int = 8192) -> str:
+    if LLM_PROVIDER == "claude":
+        return await _call_claude(prompt, system)
+    elif LLM_PROVIDER == "gemini":
+        return await _call_gemini(prompt, system)
+    else:
+        return await _call_ollama(prompt, system, num_predict)
+
+
+async def _call_ollama(prompt: str, system: str = "", num_predict: int = 8192) -> str:
     payload = {
         "model": OLLAMA_MODEL,
         "prompt": prompt,
@@ -123,6 +137,53 @@ async def call_llm(prompt: str, system: str = "", num_predict: int = 8192) -> st
     if not text:
         raise RuntimeError("Ollama 응답이 비어 있습니다. 모델 응답 형식과 실행 상태를 확인해 주세요.")
     return text
+
+
+async def _call_claude(prompt: str, system: str = "") -> str:
+    headers = {
+        "x-api-key": CLAUDE_API_KEY,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+    }
+    payload = {
+        "model": CLAUDE_MODEL,
+        "max_tokens": 8192,
+        "messages": [{"role": "user", "content": prompt}],
+    }
+    if system:
+        payload["system"] = system
+    try:
+        async with httpx.AsyncClient(timeout=300) as client:
+            res = await client.post("https://api.anthropic.com/v1/messages", headers=headers, json=payload)
+            res.raise_for_status()
+            data = res.json()
+    except httpx.HTTPStatusError as exc:
+        body = exc.response.text[:500] if exc.response is not None else ""
+        raise RuntimeError(f"Claude API 호출 실패: HTTP {exc.response.status_code}. {body}") from exc
+    except httpx.TimeoutException as exc:
+        raise RuntimeError("Claude API 응답 시간 초과.") from exc
+    return data["content"][0]["text"].strip()
+
+
+async def _call_gemini(prompt: str, system: str = "") -> str:
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
+    contents = []
+    if system:
+        contents.append({"role": "user", "parts": [{"text": system}]})
+        contents.append({"role": "model", "parts": [{"text": "알겠습니다."}]})
+    contents.append({"role": "user", "parts": [{"text": prompt}]})
+    payload = {"contents": contents, "generationConfig": {"maxOutputTokens": 8192}}
+    try:
+        async with httpx.AsyncClient(timeout=300) as client:
+            res = await client.post(url, params={"key": GEMINI_API_KEY}, json=payload)
+            res.raise_for_status()
+            data = res.json()
+    except httpx.HTTPStatusError as exc:
+        body = exc.response.text[:500] if exc.response is not None else ""
+        raise RuntimeError(f"Gemini API 호출 실패: HTTP {exc.response.status_code}. {body}") from exc
+    except httpx.TimeoutException as exc:
+        raise RuntimeError("Gemini API 응답 시간 초과.") from exc
+    return data["candidates"][0]["content"]["parts"][0]["text"].strip()
 
 
 # ── Step 1: 주제 후보 3개 생성 ────────────────

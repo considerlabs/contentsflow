@@ -474,6 +474,7 @@ async def latest_research(db: AsyncSession = Depends(get_db), user: User = Depen
                 "status": proposal.status,
                 "session_id": str(proposal.session_id) if proposal.session_id else None,
                 "session_status": session.status if session else None,
+                "session_created_at": session.created_at.isoformat() if session and session.created_at else None,
                 "generation_current_channel": session.generation_current_channel if session else None,
                 "generation_done": session.generation_done if session else 0,
                 "generation_total": session.generation_total if session else 0,

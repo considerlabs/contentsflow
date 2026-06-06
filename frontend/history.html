@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ContentFlow — 콘텐츠 이력</title>
+<title>콘텐츠 이력</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Noto Sans KR', sans-serif;
@@ -16,7 +16,7 @@
              display: flex; flex-direction: column; flex-shrink: 0; overflow-y: auto; z-index:50; }
   .main { margin-left: 244px; }
   .sidebar-logo { height: 72px; display: flex; align-items: center; gap:10px; padding: 0 22px; font-size: 20px; font-weight: 900;
-                  color: #fff; border-bottom: 1px solid #2b3147; }
+                  color: #fff; border-bottom: 1px solid #2b3147; text-decoration: none; }
   .logo-mark { width:30px; height:30px; display:grid; place-items:center; border-radius:8px; background:#4f7cff; color:#fff; font-size:15px; }
   .sidebar-section { padding: 14px 0 6px; }
   .sidebar-label { padding: 8px 22px; color:#66718e; font-size:11px; font-weight:800; text-transform:uppercase; }
@@ -91,7 +91,7 @@
   .ch-badge.blog       { background: #ede9fe; color: #7c3aed; }
   .ch-badge.newsletter { background: #fce7f3; color: #db2777; }
   .ch-badge.youtube    { background: #fee2e2; color: #dc2626; }
-  .ch-badge.shortform  { background: #f3f4f6; color: #374151; }
+  .ch-badge.shortform  { background: #e0f2fe; color: #0369a1; }
   .source-badge { display: inline-block; margin-top: 6px; font-size: 11px; font-weight: 700;
                   padding: 3px 9px; border-radius: 20px; }
   .source-badge.manual { background: #eef2f8; color: #4d586d; }
@@ -112,22 +112,15 @@
 
   .empty-row td { text-align: center; padding: 60px; color: #aab; font-size: 14px; }
 
-  /* ── 모달 ── */
-  .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 200;
-             display: none; align-items: center; justify-content: center; padding: 24px; }
-  .overlay.open { display: flex; }
-  .modal { background: #fff; border-radius: 14px; width: 100%; max-width: 760px;
-           max-height: 88vh; display: flex; flex-direction: column; overflow: hidden;
-           box-shadow: 0 20px 60px rgba(0,0,0,.2); }
-  .modal-header { padding: 18px 24px; border-bottom: 1px solid #eee;
-                  display: flex; align-items: center; gap: 10px; }
-  .modal-header h2 { flex: 1; font-size: 15px; font-weight: 700; }
-  .modal-body { padding: 20px 24px; overflow-y: auto; flex: 1; }
-  .modal-body pre { white-space: pre-wrap; font-family: 'Courier New', monospace;
-                    font-size: 13px; line-height: 1.75; background: #f8f9fc;
-                    border-radius: 8px; padding: 16px; }
-  .modal-footer { padding: 14px 24px; border-top: 1px solid #eee;
-                  display: flex; gap: 8px; justify-content: flex-end; }
+  /* ── 페이징 ── */
+  .pagination { display:flex; align-items:center; justify-content:center; gap:6px; padding:16px 0 4px; }
+  .page-btn { padding:6px 12px; border-radius:7px; border:1.5px solid #e0e3ef; background:#fff;
+              font-size:13px; font-weight:600; color:#445; cursor:pointer; transition:all .15s; }
+  .page-btn:hover:not(:disabled) { border-color:#5b8def; color:#5b8def; }
+  .page-btn.active { border-color:#5b8def; background:#5b8def; color:#fff; }
+  .page-btn:disabled { opacity:.4; cursor:not-allowed; }
+  .page-info { font-size:13px; color:#8899aa; padding:0 8px; }
+
   .btn-sm { padding: 7px 16px; border-radius: 7px; border: none; cursor: pointer;
             font-size: 13px; font-weight: 600; transition: all .15s; }
   .btn-ghost { background: #f0f2f8; color: #445; }
@@ -140,15 +133,13 @@
 
 <!-- ── 사이드바 ── -->
 <nav class="sidebar">
-  <div class="sidebar-logo"><span class="logo-mark">C</span> ContentFlow</div>
+  <a class="sidebar-logo" href="/dashboard"><span class="logo-mark">C</span> ContentFlow</a>
   <div class="sidebar-section">
     <div class="sidebar-label">Workspace</div>
-    <a class="nav-item" href="/dashboard"><span class="nav-icon">▣</span> 대시보드</a>
     <a class="nav-item" href="/generate"><span class="nav-icon">＋</span> 콘텐츠 생성</a>
     <a class="nav-item" href="/auto-content"><span class="nav-icon">◎</span> 자동 콘텐츠 생성</a>
     <a class="nav-item active" href="/history"><span class="nav-icon">▤</span> 콘텐츠 이력</a>
     <a class="nav-item" href="/settings"><span class="nav-icon">⚙</span> 설정</a>
-    <a class="nav-item" href="/onboarding"><span class="nav-icon">◌</span> 온보딩</a>
   </div>
   <div class="sidebar-section">
     <div class="sidebar-label">Channels</div>
@@ -195,7 +186,7 @@
     <div class="toolbar">
       <div class="search-wrap">
         <span class="search-icon">🔍</span>
-        <input type="text" id="search" placeholder="콘텐츠 제목으로 검색하세요" oninput="filterTable()" />
+        <input type="text" id="search" placeholder="콘텐츠 제목으로 검색하세요" oninput="currentPage=1;filterTable()" />
       </div>
       <div class="filter-btns">
         <button class="filter-btn active" data-ch="">전체</button>
@@ -213,7 +204,7 @@
           <tr>
             <th style="width:40%">콘텐츠 제목</th>
             <th>채널</th>
-            <th>생성일</th>
+            <th>생성일시</th>
             <th>생성 시간</th>
             <th>상태</th>
             <th>QC</th>
@@ -223,24 +214,7 @@
           <tr class="empty-row"><td colspan="6">로딩 중…</td></tr>
         </tbody>
       </table>
-    </div>
-  </div>
-</div>
-
-<!-- 본문 모달 -->
-<div class="overlay" id="modal-overlay" onclick="if(event.target===this)closeModal()">
-  <div class="modal">
-    <div class="modal-header">
-      <span id="modal-badge"></span>
-      <h2 id="modal-title"></h2>
-      <button class="btn-sm btn-ghost" onclick="closeModal()">✕</button>
-    </div>
-    <div class="modal-body"><pre id="modal-body">로딩 중…</pre></div>
-    <div class="modal-footer">
-      <a id="modal-link" href="#" target="_blank" style="display:none">
-        <button class="btn-sm btn-blue">↗ 발행 링크</button>
-      </a>
-      <button class="btn-sm btn-ghost" onclick="closeModal()">닫기</button>
+      <div class="pagination" id="pagination"></div>
     </div>
   </div>
 </div>
@@ -261,17 +235,22 @@ const ST_INFO  = {
   publish_failed: ['발행 실패', 'publish_failed'],
 };
 
-let allDrafts   = [];
+let allDrafts    = [];
 let activeFilter = new URLSearchParams(location.search).get('channel') || '';
+const PAGE_SIZE  = 10;
+let currentPage  = 1;
 
 function esc(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-async function apiFetch(path) {
+async function apiFetch(path, opts = {}) {
   const res = await fetch(API + path, {
+    ...opts,
     headers: {
+      'Content-Type': 'application/json',
       ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {}),
+      ...(opts.headers || {}),
     },
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -303,7 +282,7 @@ async function requireAuth() {
 function fmtDate(iso) {
   if (!iso) return '-';
   const d = new Date(iso);
-  return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;
+  return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
 }
 
 function fmtMs(ms) {
@@ -320,16 +299,23 @@ function updateStats(drafts) {
   document.getElementById('s-revision').textContent  = drafts.filter(d => d.status === 'revision').length;
 }
 
-// ── 테이블 렌더 ───────────────────────────────────────────
+// ── 테이블 렌더 (페이지 슬라이스 적용) ───────────────────
 function renderTable(drafts) {
   const tbody = document.getElementById('table-body');
   if (!drafts.length) {
     tbody.innerHTML = `<tr class="empty-row"><td colspan="6">${activeFilter ? '해당 채널 콘텐츠가 없어요.' : '생성된 콘텐츠가 없어요.'}</td></tr>`;
+    document.getElementById('pagination').innerHTML = '';
     return;
   }
-  tbody.innerHTML = drafts.map(d => {
+
+  const totalPages = Math.ceil(drafts.length / PAGE_SIZE);
+  if (currentPage > totalPages) currentPage = totalPages;
+  const start = (currentPage - 1) * PAGE_SIZE;
+  const page  = drafts.slice(start, start + PAGE_SIZE);
+
+  tbody.innerHTML = page.map(d => {
     const [stLabel, stClass] = ST_INFO[d.status] || [d.status, 'review'];
-    const sourceType = d.source_type === 'research' ? 'research' : 'manual';
+    const sourceType  = d.source_type === 'research' ? 'research' : 'manual';
     const sourceLabel = d.source_label || (sourceType === 'research' ? '자동 리서치' : '수동 생성');
     return `<tr data-id="${esc(d.id)}" data-ch="${esc(d.channel_type)}" data-title="${esc(d.title||'')}" data-url="${esc(d.published_url||'')}">
       <td class="td-title">
@@ -346,9 +332,39 @@ function renderTable(drafts) {
 
   tbody.querySelectorAll('tr').forEach(row => {
     row.addEventListener('click', () =>
-      openModal(row.dataset.id, row.dataset.ch, row.dataset.title, row.dataset.url)
+      openDraftModal(row.dataset.id, row.dataset.ch, row.dataset.title, { onReview: load })
     );
   });
+
+  renderPagination(drafts.length, totalPages);
+}
+
+function renderPagination(total, totalPages) {
+  const el = document.getElementById('pagination');
+  if (totalPages <= 1) { el.innerHTML = ''; return; }
+
+  const pages = [];
+  // 항상 첫·끝 페이지 + 현재 기준 ±2 표시
+  const show = new Set([1, totalPages]);
+  for (let i = Math.max(1, currentPage - 2); i <= Math.min(totalPages, currentPage + 2); i++) show.add(i);
+  const sorted = [...show].sort((a, b) => a - b);
+
+  let html = `<button class="page-btn" onclick="goPage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''}>‹ 이전</button>`;
+  let prev = 0;
+  for (const p of sorted) {
+    if (prev && p - prev > 1) html += `<span class="page-info">…</span>`;
+    html += `<button class="page-btn ${p === currentPage ? 'active' : ''}" onclick="goPage(${p})">${p}</button>`;
+    prev = p;
+  }
+  html += `<button class="page-btn" onclick="goPage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''}>다음 ›</button>`;
+  html += `<span class="page-info">${total}개 중 ${(currentPage-1)*PAGE_SIZE+1}–${Math.min(currentPage*PAGE_SIZE, total)}</span>`;
+  el.innerHTML = html;
+}
+
+function goPage(page) {
+  currentPage = page;
+  filterTable();
+  document.querySelector('.table-wrap')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 // ── 검색 + 필터 ───────────────────────────────────────────
@@ -368,6 +384,7 @@ document.querySelectorAll('.filter-btn').forEach(btn => {
     document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     activeFilter = btn.dataset.ch;
+    currentPage = 1;
     const url = activeFilter ? `/history?channel=${encodeURIComponent(activeFilter)}` : '/history';
     history.replaceState(null, '', url);
     filterTable();
@@ -387,32 +404,10 @@ async function load() {
   }
 }
 
-// ── 모달 ──────────────────────────────────────────────────
-async function openModal(id, chType, title, publishedUrl) {
-  document.getElementById('modal-title').textContent = title || '본문';
-  document.getElementById('modal-body').textContent  = '로딩 중…';
-  const badge = document.getElementById('modal-badge');
-  badge.className = `ch-badge ${chType}`;
-  badge.textContent = CH_LABEL[chType] || chType;
-  const linkEl = document.getElementById('modal-link');
-  linkEl.href = publishedUrl || '#';
-  linkEl.style.display = publishedUrl ? 'block' : 'none';
-  document.getElementById('modal-overlay').classList.add('open');
-  try {
-    const data = await apiFetch(`/api/drafts/${id}`);
-    document.getElementById('modal-body').textContent = data.body_md || '(내용 없음)';
-  } catch(e) {
-    document.getElementById('modal-body').textContent = `로드 실패: ${e.message}`;
-  }
-}
-
-function closeModal() {
-  document.getElementById('modal-overlay').classList.remove('open');
-}
-
 (async function init() {
   if (await requireAuth()) load();
 })();
 </script>
+<script src="/frontend/draft-modal.js"></script>
 </body>
 </html>

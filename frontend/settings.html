@@ -47,6 +47,9 @@
   .btn-danger { background: #fee2e2; color: #dc2626; }
   .btn-danger:hover { background: #fecaca; }
   .btn-success { background: #dcfce7; color: #16a34a; }
+  .provider-btn { background: #f4f6fb; color: #555; border: 1.5px solid #dfe5f0; padding: 7px 16px; font-size: 13px; font-weight: 700; border-radius: 8px; cursor: pointer; transition: all .18s; }
+  .provider-btn:hover { background: #eef4ff; border-color: #9db5ff; color: #2563eb; }
+  .provider-btn.active { background: #2563eb; color: #fff; border-color: #2563eb; }
 
   .color-picker { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
   .color-swatch { width: 24px; height: 24px; border-radius: 50%; cursor: pointer;
@@ -98,7 +101,7 @@
              position: fixed; top: 0; left: 0;
              display: flex; flex-direction: column; overflow-y: auto; z-index: 50; }
   .sidebar-logo { height: 72px; display: flex; align-items: center; gap:10px; padding: 0 22px; font-size: 20px; font-weight: 900;
-                  color: #fff; border-bottom: 1px solid #2b3147; }
+                  color: #fff; border-bottom: 1px solid #2b3147; text-decoration: none; }
   .logo-mark { width:30px; height:30px; display:grid; place-items:center; border-radius:8px; background:#4f7cff; color:#fff; font-size:15px; }
   .sidebar-section { padding: 14px 0 6px; }
   .sidebar-label { padding: 8px 22px; color:#66718e; font-size:11px; font-weight:800; text-transform:uppercase; }
@@ -118,15 +121,13 @@
 </head>
 <body>
 <nav class="sidebar">
-  <div class="sidebar-logo"><span class="logo-mark">C</span> ContentFlow</div>
+  <a class="sidebar-logo" href="/dashboard"><span class="logo-mark">C</span> ContentFlow</a>
   <div class="sidebar-section">
     <div class="sidebar-label">Workspace</div>
-    <a class="nav-item" href="/dashboard"><span class="nav-icon">▣</span> 대시보드</a>
     <a class="nav-item" href="/generate"><span class="nav-icon">＋</span> 콘텐츠 생성</a>
     <a class="nav-item" href="/auto-content"><span class="nav-icon">◎</span> 자동 콘텐츠 생성</a>
     <a class="nav-item" href="/history"><span class="nav-icon">▤</span> 콘텐츠 이력</a>
     <a class="nav-item active" href="/settings"><span class="nav-icon">⚙</span> 설정</a>
-    <a class="nav-item" href="/onboarding"><span class="nav-icon">◌</span> 온보딩</a>
   </div>
   <div class="sidebar-section">
     <div class="sidebar-label">Channels</div>
@@ -150,6 +151,7 @@
     <div class="tab"        onclick="switchTab(1)">발행 채널</div>
     <div class="tab"        onclick="switchTab(2)">페르소나·스타일</div>
     <div class="tab"        onclick="switchTab(3)">리서치 소스</div>
+    <div class="tab"        onclick="switchTab(4)">LLM 설정</div>
   </div>
 
   <!-- ── Tab 1: 카테고리·키워드 ─────────────────────────── -->
@@ -240,6 +242,67 @@
       <div id="source-list"><div class="empty">로딩 중...</div></div>
     </div>
   </div>
+
+  <!-- ── Tab 5: LLM 설정 ──────────────────────────────────── -->
+  <div class="panel" id="panel-4">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">LLM 설정</span>
+        <button class="btn-primary btn-sm" onclick="saveLLMSettings()">저장</button>
+      </div>
+      <div style="font-size:13px;color:#555;margin-bottom:16px">
+        현재 사용 중: <strong id="llm-current-model">로딩 중...</strong>
+      </div>
+      <label style="margin-bottom:8px">LLM 공급자</label>
+      <div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap">
+        <button class="provider-btn active" id="prov-ollama" onclick="selectProvider('ollama')">Ollama (로컬)</button>
+        <button class="provider-btn" id="prov-claude" onclick="selectProvider('claude')">Claude API</button>
+        <button class="provider-btn" id="prov-gemini" onclick="selectProvider('gemini')">Gemini API</button>
+      </div>
+
+      <!-- Ollama 설정 -->
+      <div id="ollama-settings">
+        <label>사용 가능한 모델</label>
+        <select id="llm-model-select" style="width:100%;border:1.5px solid #ddd;border-radius:8px;padding:9px 12px;font-size:14px;outline:none;margin-bottom:4px" onchange="document.getElementById('llm-model-input').value=this.value">
+          <option value="">-- 선택하면 아래에 자동 입력됩니다 --</option>
+        </select>
+        <label>모델 이름 (직접 입력)</label>
+        <input type="text" id="llm-model-input" placeholder="qwen3.6:35b-a3b" />
+        <label>Ollama URL</label>
+        <input type="text" id="llm-url-input" placeholder="http://localhost:11434/api/generate" />
+      </div>
+
+      <!-- Claude API 설정 -->
+      <div id="claude-settings" style="display:none">
+        <label>Claude 모델</label>
+        <select id="claude-model-select" style="width:100%;border:1.5px solid #ddd;border-radius:8px;padding:9px 12px;font-size:14px;outline:none">
+          <option value="claude-sonnet-4-6">claude-sonnet-4-6 (권장)</option>
+          <option value="claude-opus-4-8">claude-opus-4-8</option>
+          <option value="claude-haiku-4-5-20251001">claude-haiku-4-5-20251001</option>
+        </select>
+        <label>API 키</label>
+        <input type="password" id="claude-api-key" placeholder="sk-ant-..." autocomplete="off" />
+        <div style="font-size:12px;color:#888;margin-top:4px">키는 서버에 저장되며, 저장 후 마스킹됩니다.</div>
+      </div>
+
+      <!-- Gemini API 설정 -->
+      <div id="gemini-settings" style="display:none">
+        <label>Gemini 모델</label>
+        <select id="gemini-model-select" style="width:100%;border:1.5px solid #ddd;border-radius:8px;padding:9px 12px;font-size:14px;outline:none">
+          <option value="gemini-2.0-flash">gemini-2.0-flash (권장)</option>
+          <option value="gemini-1.5-pro">gemini-1.5-pro</option>
+          <option value="gemini-2.5-pro">gemini-2.5-pro</option>
+        </select>
+        <label>API 키</label>
+        <input type="password" id="gemini-api-key" placeholder="AIza..." autocomplete="off" />
+        <div style="font-size:12px;color:#888;margin-top:4px">키는 서버에 저장되며, 저장 후 마스킹됩니다.</div>
+      </div>
+
+      <div style="font-size:12px;color:#888;margin-top:16px;line-height:1.6">
+        변경 즉시 다음 생성부터 적용됩니다. 서버 재시작 없이 동작합니다.
+      </div>
+    </div>
+  </div>
 </div>
 
 </div>
@@ -303,9 +366,20 @@ function toast(msg, ok = true) {
 }
 
 // ── 탭 전환 ───────────────────────────────────────────────
-function switchTab(i) {
+const TAB_HASHES = ['categories', 'channels', 'persona', 'research-sources', 'llm'];
+
+function tabFromHash() {
+  const hash = window.location.hash.replace('#', '');
+  const idx = TAB_HASHES.indexOf(hash);
+  return idx >= 0 ? idx : 0;
+}
+
+function switchTab(i, updateHash = true) {
   document.querySelectorAll('.tab').forEach((t, j) => t.classList.toggle('active', i === j));
   document.querySelectorAll('.panel').forEach((p, j) => p.classList.toggle('active', i === j));
+  if (updateHash && TAB_HASHES[i]) {
+    history.replaceState(null, '', `/settings#${TAB_HASHES[i]}`);
+  }
 }
 
 // ── 색상 선택 ─────────────────────────────────────────────
@@ -586,6 +660,83 @@ function esc(str) {
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+// ── Tab 5: LLM 설정 ──────────────────────────────────────
+let currentProvider = 'ollama';
+
+function selectProvider(p) {
+  currentProvider = p;
+  ['ollama', 'claude', 'gemini'].forEach(name => {
+    document.getElementById(`prov-${name}`).classList.toggle('active', name === p);
+    document.getElementById(`${name}-settings`).style.display = name === p ? 'block' : 'none';
+  });
+}
+
+async function loadLLMSettings() {
+  try {
+    const data = await api('GET', '/api/settings');
+    currentProvider = data.provider || 'ollama';
+    selectProvider(currentProvider);
+
+    const curModel = currentProvider === 'claude' ? data.claude_model :
+                     currentProvider === 'gemini' ? data.gemini_model : data.ollama_model;
+    document.getElementById('llm-current-model').textContent = `${curModel || '(없음)'} · ${currentProvider}`;
+
+    // Ollama
+    document.getElementById('llm-model-input').value = data.ollama_model || '';
+    document.getElementById('llm-url-input').value   = data.ollama_url   || '';
+    const sel = document.getElementById('llm-model-select');
+    const models = data.available_models || [];
+    if (models.length) {
+      sel.innerHTML = '<option value="">-- 목록에서 선택 --</option>' +
+        models.map(m => `<option value="${esc(m)}" ${m === data.ollama_model ? 'selected' : ''}>${esc(m)}</option>`).join('');
+    } else {
+      sel.innerHTML = '<option value="">Ollama에 연결되지 않았거나 모델 없음</option>';
+    }
+
+    // Claude
+    if (data.claude_model) document.getElementById('claude-model-select').value = data.claude_model;
+    if (data.has_claude_key) document.getElementById('claude-api-key').placeholder = '(저장됨 — 변경 시만 입력)';
+
+    // Gemini
+    if (data.gemini_model) document.getElementById('gemini-model-select').value = data.gemini_model;
+    if (data.has_gemini_key) document.getElementById('gemini-api-key').placeholder = '(저장됨 — 변경 시만 입력)';
+  } catch(e) {
+    document.getElementById('llm-current-model').textContent = '로드 실패';
+  }
+}
+
+async function saveLLMSettings() {
+  const payload = { provider: currentProvider };
+
+  if (currentProvider === 'ollama') {
+    const model = document.getElementById('llm-model-input').value.trim();
+    if (!model) { toast('모델 이름을 입력해 주세요.', false); return; }
+    payload.model = model;
+    payload.ollama_url = document.getElementById('llm-url-input').value.trim() || null;
+  } else if (currentProvider === 'claude') {
+    payload.model = document.getElementById('claude-model-select').value;
+    const key = document.getElementById('claude-api-key').value.trim();
+    if (key) payload.api_key = key;
+  } else if (currentProvider === 'gemini') {
+    payload.model = document.getElementById('gemini-model-select').value;
+    const key = document.getElementById('gemini-api-key').value.trim();
+    if (key) payload.api_key = key;
+  }
+
+  try {
+    const data = await api('PUT', '/api/settings', payload);
+    const curModel = currentProvider === 'claude' ? data.claude_model :
+                     currentProvider === 'gemini' ? data.gemini_model : data.ollama_model;
+    document.getElementById('llm-current-model').textContent = `${curModel} · ${currentProvider}`;
+    toast(`LLM 설정 저장됨: ${curModel}`);
+    if (currentProvider !== 'ollama') {
+      const keyEl = document.getElementById(`${currentProvider}-api-key`);
+      keyEl.value = '';
+      keyEl.placeholder = '(저장됨 — 변경 시만 입력)';
+    }
+  } catch(e) { toast(e.message, false); }
+}
+
 // ── 초기 로드 ─────────────────────────────────────────────
 (async function init() {
   if (await requireAuth()) {
@@ -593,8 +744,12 @@ function esc(str) {
     loadChannels();
     loadPersona();
     loadResearchSources();
+    loadLLMSettings();
+    switchTab(tabFromHash(), false);
   }
 })();
+
+window.addEventListener('hashchange', () => switchTab(tabFromHash(), false));
 </script>
 </body>
 </html>

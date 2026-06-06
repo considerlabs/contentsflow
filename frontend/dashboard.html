@@ -78,6 +78,7 @@
     color: #fff;
     font-size: 20px;
     font-weight: 900;
+    text-decoration: none;
   }
   .logo-mark {
     width: 30px;
@@ -252,12 +253,6 @@
   }
   .btn-ghost:hover { background: #e3e8f1; }
   .btn-sm { height: 32px; padding: 0 12px; font-size: 12px; }
-  .btn-approve { background: #dcfce7; color: #15803d; padding: 8px 14px; }
-  .btn-approve:hover { background: #bbf7d0; }
-  .btn-revise { background: #fef9c3; color: #854d0e; padding: 8px 14px; }
-  .btn-revise:hover { background: #fef08a; }
-  .btn-reject { background: #fee2e2; color: #dc2626; padding: 8px 14px; }
-  .btn-reject:hover { background: #fecaca; }
   .btn-danger { background: #fee2e2; color: #dc2626; padding: 8px 14px; }
 
   .topic-list { display: flex; flex-direction: column; gap: 10px; }
@@ -271,9 +266,9 @@
   .topic-card:hover { border-color: #9db5ff; background: #f7f9ff; }
   .topic-card.selected { border-color: var(--primary); background: #eef4ff; }
   .topic-card.generating { opacity: .72; }
-  .t-title { font-size: 14px; font-weight: 800; color: #1f2433; }
-  .t-msg { font-size: 12px; color: var(--muted); margin-top: 5px; line-height: 1.5; }
-  .t-badge { display: inline-block; margin-top: 8px; font-size: 11px; color: var(--primary); font-weight: 800; }
+  .t-title { font-size: 14px; font-weight: 800; color: #1f2433; overflow-wrap: break-word; word-break: break-word; }
+  .t-msg { font-size: 12px; color: var(--muted); margin-top: 5px; line-height: 1.5; overflow-wrap: break-word; word-break: break-word; }
+  .t-badge { display: inline-block; margin-top: 8px; font-size: 11px; color: var(--primary); font-weight: 800; overflow-wrap: break-word; word-break: break-word; }
   .research-actions { display: flex; gap: 8px; flex-wrap: wrap; }
   .research-meta { font-size: 12px; color: #8b96aa; margin-bottom: 12px; line-height: 1.5; }
   .evidence-list { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
@@ -470,8 +465,6 @@
     gap: 9px;
     align-items: flex-end;
   }
-  .modal-footer textarea { flex: 1; min-height: 64px; resize: none; font-size: 13px; }
-  .modal-actions { display: flex; flex-direction: column; gap: 7px; }
 
   .toast {
     position: fixed;
@@ -511,15 +504,13 @@
 <body>
 
 <nav class="sidebar">
-  <div class="sidebar-logo"><span class="logo-mark">C</span> ContentFlow</div>
+  <a class="sidebar-logo" href="/dashboard"><span class="logo-mark">C</span> ContentFlow</a>
   <div class="sidebar-section">
     <div class="sidebar-label">Workspace</div>
-    <a class="nav-item active" href="/dashboard"><span class="nav-icon">▣</span> 대시보드</a>
     <a class="nav-item" href="/generate"><span class="nav-icon">＋</span> 콘텐츠 생성</a>
     <a class="nav-item" href="/auto-content"><span class="nav-icon">◎</span> 자동 콘텐츠 생성</a>
     <a class="nav-item" href="/history"><span class="nav-icon">▤</span> 콘텐츠 이력</a>
     <a class="nav-item" href="/settings"><span class="nav-icon">⚙</span> 설정</a>
-    <a class="nav-item" href="/onboarding"><span class="nav-icon">◌</span> 온보딩</a>
   </div>
   <div class="sidebar-section secondary">
     <div class="sidebar-label">Channels</div>
@@ -587,27 +578,6 @@
           </div>
         </div>
 
-        <div class="panel assistant-card">
-          <div class="panel-header">
-            <div>
-              <div class="panel-title">작업 진입점</div>
-              <div class="panel-sub">생성 작업은 전용 화면에서 실행합니다</div>
-            </div>
-          </div>
-          <div class="panel-body">
-            <div class="assistant-row">
-              <div class="assistant-bubble user">키워드로 바로 만들기</div>
-            </div>
-            <div class="assistant-row">
-              <div class="assistant-bubble bot">콘텐츠 생성 화면에서 키워드 입력, 주제 선택, 4채널 초안 생성을 진행합니다.</div>
-            </div>
-            <div class="research-actions">
-              <a href="/generate"><button class="btn-primary btn-sm">콘텐츠 생성</button></a>
-              <a href="/auto-content"><button class="btn-ghost btn-sm">자동 콘텐츠 생성</button></a>
-            </div>
-            <div class="assistant-input">qwen3.6:35b-a3b · Ollama local</div>
-          </div>
-        </div>
 
       </div>
 
@@ -638,7 +608,7 @@
               <div class="panel-sub">채널별 생성 콘텐츠 누적과 역할</div>
             </div>
             <div class="spacer"></div>
-            <a href="/settings"><button class="btn-ghost btn-sm">채널 설정</button></a>
+            <a href="/settings#channels"><button class="btn-ghost btn-sm">채널 설정</button></a>
           </div>
           <div class="panel-body">
             <div class="channel-grid">
@@ -654,26 +624,6 @@
   </section>
 </main>
 
-<div class="overlay" id="modal-overlay" onclick="if(event.target===this)closeModal()">
-  <div class="modal">
-    <div class="modal-header">
-      <span id="modal-ch-badge"></span>
-      <h2 id="modal-title">초안 검수</h2>
-      <button class="btn-ghost btn-sm" onclick="closeModal()">닫기</button>
-    </div>
-    <div class="modal-body">
-      <pre id="modal-body"></pre>
-    </div>
-    <div class="modal-footer">
-      <textarea id="memo" placeholder="수정 요청 내용"></textarea>
-      <div class="modal-actions">
-        <button class="btn-approve" id="btn-review-approve" onclick="review('approved')">승인·발행</button>
-        <button class="btn-revise" onclick="review('revision')">수정 요청</button>
-        <button class="btn-reject" onclick="review('rejected')">반려</button>
-      </div>
-    </div>
-  </div>
-</div>
 
 <div class="overlay" id="research-modal-overlay" onclick="if(event.target===this)closeResearchModal()">
   <div class="modal">
@@ -683,12 +633,9 @@
       <button class="btn-ghost btn-sm" onclick="closeResearchModal()">닫기</button>
     </div>
     <div class="modal-body" id="research-modal-body"></div>
-    <div class="modal-footer">
-      <div id="research-modal-status" style="font-size:12px;color:#7a8499;line-height:1.5;flex:1"></div>
-      <div class="research-modal-actions">
-        <button class="btn-ghost" onclick="closeResearchModal()">취소</button>
-        <a href="/auto-content"><button class="btn-primary">자동 생성 화면</button></a>
-      </div>
+    <div class="modal-footer" style="justify-content:flex-end;align-items:center;gap:8px">
+      <button class="btn-ghost btn-sm" onclick="closeResearchModal()">닫기</button>
+      <button class="btn-ghost btn-sm" style="background:var(--primary);color:#fff" onclick="closeResearchModal();location.href='/auto-content'">생성</button>
     </div>
   </div>
 </div>
@@ -760,8 +707,6 @@ let selectedTopicIdx = null;
 let pollTimer = null;
 let _genStartTime = null;
 let _clockTimer = null;
-let currentDraftId = null;
-let currentDraftChannel = null;
 let currentResearchProposalId = null;
 let researchRefreshTimer = null;
 
@@ -775,7 +720,7 @@ async function loadResearch() {
         <div class="research-meta">아직 생성된 오늘의 리서치가 없습니다. 설정에서 RSS/사이트 소스를 추가한 뒤 수동 수집을 실행하거나, 새벽 자동 실행을 기다리세요.</div>
         <div class="research-actions">
           <a href="/auto-content"><button class="btn-primary btn-sm">자동 생성 화면</button></a>
-          <a href="/settings"><button class="btn-ghost btn-sm">수집 소스 설정</button></a>
+          <a href="/settings#research-sources"><button class="btn-ghost btn-sm">수집 소스 설정</button></a>
         </div>`;
       return;
     }
@@ -797,7 +742,7 @@ async function loadResearch() {
         </div>
         <div class="research-actions" style="margin-top:12px">
           <a href="/auto-content"><button class="btn-primary btn-sm">자동 생성 화면</button></a>
-          <a href="/settings"><button class="btn-ghost btn-sm">소스 확인</button></a>
+          <a href="/settings#research-sources"><button class="btn-ghost btn-sm">소스 확인</button></a>
         </div>`;
       return;
     }
@@ -873,9 +818,8 @@ function renderProposalProgress(proposal) {
 
 function renderProposalActions(proposal) {
   return `
-    <div class="proposal-card-actions">
-      <button class="btn-primary btn-sm" onclick="event.stopPropagation();openResearchProposal('${proposal.id}')">상세보기</button>
-      <button class="btn-ghost btn-sm" onclick="event.stopPropagation();location.href='/auto-content'">관리 화면</button>
+    <div style="margin-top:10px">
+      <button class="btn-ghost btn-sm" style="width:100%" onclick="event.stopPropagation();openResearchProposal('${proposal.id}')">상세보기</button>
     </div>`;
 }
 
@@ -915,8 +859,6 @@ function openResearchProposal(proposalId) {
   }
   currentResearchProposalId = proposalId;
   document.getElementById('research-modal-title').textContent = proposal.title || '주제 상세';
-  const effectiveStatus = proposalEffectiveStatus(proposal);
-  const displayStatus = statusLabel(effectiveStatus);
   const evidence = proposal.evidence || [];
   document.getElementById('research-modal-body').innerHTML = `
     <div class="proposal-detail">
@@ -944,22 +886,6 @@ function openResearchProposal(proposalId) {
         <div class="proposal-text">${(proposal.channels || ['blog','newsletter','youtube','shortform']).map(channelLabel).join(' · ')}</div>
       </div>
     </div>`;
-  document.getElementById('research-modal-status').textContent =
-    proposal.session_id ? `${displayStatus} · 세션 ${proposal.session_id}` : displayStatus;
-  const btn = document.getElementById('btn-select-research-topic');
-  if (btn) {
-    const canSelect = !proposal.session_id || ['cancelled', 'failed'].includes(effectiveStatus);
-    btn.disabled = !canSelect;
-    if (effectiveStatus === 'generating') {
-      btn.textContent = '생성 중';
-    } else if (effectiveStatus === 'cancel_requested') {
-      btn.textContent = '중단 처리 중';
-    } else if (['generated', 'review'].includes(effectiveStatus)) {
-      btn.textContent = '이미 생성됨';
-    } else {
-      btn.textContent = '이 주제로 선택·생성';
-    }
-  }
   document.getElementById('research-modal-overlay').classList.add('open');
 }
 
@@ -1033,7 +959,7 @@ async function loadPending() {
       </div>`;
     }).join('');
     list.querySelectorAll('.draft-card').forEach(card => {
-      card.addEventListener('click', () => openDraft(card.dataset.id, card.dataset.ch, card.dataset.title));
+      card.addEventListener('click', () => openDraftModal(card.dataset.id, card.dataset.ch, card.dataset.title, { onReview: () => { loadPending(); loadOverview(); } }));
     });
   } catch(e) {
     list.innerHTML = `<div class="empty">로드 실패: ${esc(e.message)}</div>`;
@@ -1063,75 +989,6 @@ async function loadOverview() {
   }
 }
 
-async function openDraft(id, chType, title) {
-  currentDraftId = id;
-  currentDraftChannel = chType;
-  document.getElementById('modal-title').textContent = title || '초안 검수';
-  document.getElementById('modal-body').textContent = '로딩 중...';
-  document.getElementById('memo').value = '';
-  const CH_LABEL = { blog:'블로그', newsletter:'뉴스레터', youtube:'유튜브', shortform:'인스타그램' };
-  const badge = document.getElementById('modal-ch-badge');
-  badge.className = `ch-badge ${chType}`;
-  badge.textContent = CH_LABEL[chType] || chType;
-  document.getElementById('btn-review-approve').textContent = '승인·발행';
-  document.getElementById('modal-overlay').classList.add('open');
-
-  try {
-    const data = await api('GET', `/api/drafts/${id}`);
-    const bodyEl = document.getElementById('modal-body');
-    if (data.body_md) {
-      bodyEl.textContent = data.body_md;
-    } else {
-      bodyEl.innerHTML = `
-        <div style="text-align:center;padding:40px 20px;color:#8899aa">
-          <div style="font-weight:900;font-size:15px;margin-bottom:8px">초안 내용이 비어 있습니다</div>
-          <button class="btn-danger" onclick="deleteDraft()">이 초안 삭제</button>
-        </div>`;
-    }
-  } catch(e) {
-    document.getElementById('modal-body').textContent = `로드 실패: ${e.message}`;
-  }
-}
-
-function closeModal() {
-  document.getElementById('modal-overlay').classList.remove('open');
-  currentDraftId = null;
-  currentDraftChannel = null;
-}
-
-async function deleteDraft() {
-  if (!currentDraftId) return;
-  if (!confirm('이 초안을 삭제할까요?')) return;
-  try {
-    await api('DELETE', `/api/drafts/${currentDraftId}`);
-    toast('삭제됐습니다');
-    closeModal();
-    loadPending();
-    loadOverview();
-  } catch(e) {
-    toast(e.message, false);
-  }
-}
-
-async function review(action) {
-  if (!currentDraftId) return;
-  const memo = document.getElementById('memo').value.trim();
-  if (action === 'revision' && !memo) {
-    toast('수정 요청 내용을 입력해 주세요.', false);
-    return;
-  }
-  try {
-    await api('POST', `/api/sessions/drafts/${currentDraftId}/review`, { action, memo: memo || null });
-    const approvedLabel = '승인·발행 처리됐습니다';
-    const labels = { approved: approvedLabel, revision: '수정 요청을 보냈습니다', rejected: '반려됐습니다' };
-    toast(labels[action]);
-    closeModal();
-    loadPending();
-    loadOverview();
-  } catch(e) {
-    toast(e.message, false);
-  }
-}
 
 (async function init() {
   if (await requireAuth()) {
@@ -1139,5 +996,6 @@ async function review(action) {
   }
 })();
 </script>
+<script src="/frontend/draft-modal.js"></script>
 </body>
 </html>

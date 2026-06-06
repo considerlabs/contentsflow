@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ContentFlow — 콘텐츠 생성</title>
+<title>콘텐츠 생성</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
@@ -20,7 +20,7 @@
   input[type=text] { width:100%; border:1.5px solid #dce2ee; border-radius:8px; padding:10px 12px; font-size:14px; outline:none; background:#fff; color:var(--text); }
   input:focus { border-color:var(--primary); box-shadow:0 0 0 3px rgba(79,124,255,.12); }
   .sidebar { width:244px; background:var(--nav); color:#aeb8d1; height:100vh; position:fixed; inset:0 auto 0 0; display:flex; flex-direction:column; z-index:50; }
-  .sidebar-logo { height:72px; padding:0 22px; display:flex; align-items:center; gap:10px; border-bottom:1px solid #2b3147; color:#fff; font-size:20px; font-weight:900; }
+  .sidebar-logo { height:72px; padding:0 22px; display:flex; align-items:center; gap:10px; border-bottom:1px solid #2b3147; color:#fff; font-size:20px; font-weight:900; text-decoration:none; }
   .logo-mark { width:30px; height:30px; display:grid; place-items:center; border-radius:8px; background:var(--primary); color:#fff; font-size:15px; }
   .sidebar-section { padding:14px 0 6px; }
   .sidebar-label { padding:8px 22px; color:#66718e; font-size:11px; font-weight:800; text-transform:uppercase; }
@@ -34,43 +34,57 @@
   .topbar-left h1 { font-size:20px; font-weight:900; color:#151a2b; }
   .topbar-left p { font-size:13px; color:var(--muted); margin-top:3px; }
   .topbar-actions { display:flex; align-items:center; gap:8px; }
-  .content { padding:24px 28px 36px; max-width:1440px; }
-  .page-grid { display:grid; grid-template-columns:minmax(360px,480px) minmax(0,1fr); gap:18px; align-items:start; }
-  .stack { display:flex; flex-direction:column; gap:18px; }
+  .content { padding:28px 28px 48px; }
+
+  /* 생성 섹션: 중앙 정렬, 적절한 너비 */
+  .gen-section { max-width:620px; margin:0 auto 28px; }
+
+  /* 검수 대기 섹션: 전체 너비 */
+  .pending-section { }
+
   .panel { background:var(--panel); border:1px solid var(--line); border-radius:12px; overflow:hidden; }
-  .panel-header { min-height:54px; padding:16px 18px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:10px; }
+  .panel-header { min-height:54px; padding:14px 18px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:10px; }
   .panel-title { font-size:15px; font-weight:900; color:#171c2c; }
   .panel-sub { font-size:12px; color:var(--muted); margin-top:2px; }
-  .panel-body { padding:18px; }
-  .btn-primary { background:var(--primary); color:#fff; width:100%; height:42px; margin-top:16px; }
+  .panel-body { padding:20px; }
+  .spacer { flex:1; }
+
+  .btn-primary { background:var(--primary); color:#fff; width:100%; height:42px; margin-top:18px; }
   .btn-primary:hover { background:var(--primary-dark); }
   .btn-primary:disabled { background:#9db5ff; cursor:not-allowed; }
   .btn-ghost { background:#eef2f8; color:#4d586d; padding:8px 14px; }
   .btn-ghost:hover { background:#e3e8f1; }
   .btn-danger { background:#fee2e2; color:#dc2626; padding:8px 14px; }
   .btn-sm { height:32px; padding:0 12px; font-size:12px; }
+
   .topic-list { display:flex; flex-direction:column; gap:10px; }
-  .topic-card { border:1.5px solid #dfe5f0; border-radius:10px; padding:13px 14px; cursor:pointer; background:#fff; }
+  .topic-card { border:1.5px solid #dfe5f0; border-radius:10px; padding:14px 16px; cursor:pointer; background:#fff; transition:border-color .15s, background .15s; }
   .topic-card:hover { border-color:#9db5ff; background:#f7f9ff; }
   .topic-card.selected { border-color:var(--primary); background:#eef4ff; }
   .t-title { font-size:14px; font-weight:900; color:#1f2433; }
-  .t-msg { font-size:12px; color:var(--muted); margin-top:5px; line-height:1.5; }
+  .t-msg { font-size:13px; color:var(--muted); margin-top:5px; line-height:1.55; }
   .t-badge { display:inline-block; margin-top:8px; font-size:11px; color:var(--primary); font-weight:900; }
+
   .ch-row { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
-  .ch-chip { border:1.5px solid #dfe5f0; border-radius:8px; min-height:38px; padding:9px 10px; font-size:13px; font-weight:900; text-align:center; cursor:pointer; background:#fff; }
+  .ch-chip { border:1.5px solid #dfe5f0; border-radius:8px; min-height:40px; padding:9px 10px; font-size:13px; font-weight:900; text-align:center; cursor:pointer; background:#fff; transition:all .15s; }
   .ch-chip.selected { border-color:var(--primary); background:#eef4ff; color:var(--primary); }
-  .status-box { background:#f8faff; border:1px solid #cbd8ff; border-radius:10px; padding:16px; text-align:center; }
-  .status-text { font-size:14px; font-weight:900; color:var(--primary); }
-  .status-sub { font-size:12px; color:var(--muted); margin-top:6px; line-height:1.5; }
+
+  .status-box { background:#f8faff; border:1px solid #cbd8ff; border-radius:10px; padding:20px 18px; text-align:center; }
+  .status-text { font-size:15px; font-weight:900; color:var(--primary); }
+  .status-sub { font-size:13px; color:var(--muted); margin-top:6px; line-height:1.5; }
+  .elapsed { font-size:32px; font-weight:900; color:var(--primary); margin-top:12px; letter-spacing:-.5px; }
   .spinner { display:inline-block; width:16px; height:16px; border:2px solid #c7d9ff; border-top-color:var(--primary); border-radius:50%; animation:spin .8s linear infinite; margin-right:8px; vertical-align:middle; }
   @keyframes spin { to { transform:rotate(360deg); } }
-  .generation-actions { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:14px; }
-  .generation-actions button { width:100%; margin-top:0; height:36px; }
-  .draft-list { display:flex; flex-direction:column; gap:10px; }
-  .draft-card { border:1px solid #e4e9f2; border-radius:9px; padding:12px 13px; background:#fff; cursor:pointer; }
+
+  .generation-actions { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:16px; }
+  .generation-actions button { width:100%; margin-top:0; height:38px; }
+
+  /* 검수 대기 목록: 카드 그리드 */
+  .draft-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:10px; }
+  .draft-card { border:1px solid #e4e9f2; border-radius:9px; padding:13px 14px; background:#fff; cursor:pointer; transition:border-color .15s, box-shadow .15s; }
   .draft-card:hover { border-color:#9db5ff; box-shadow:0 4px 14px rgba(79,124,255,.1); }
-  .draft-meta { display:flex; align-items:center; gap:6px; margin-bottom:7px; flex-wrap:wrap; }
-  .draft-title { font-size:13px; font-weight:800; line-height:1.45; }
+  .draft-meta { display:flex; align-items:center; gap:6px; margin-bottom:8px; flex-wrap:wrap; }
+  .draft-title { font-size:13px; font-weight:800; line-height:1.45; color:var(--text); }
   .ch-badge, .qc-badge, .source-badge { display:inline-flex; align-items:center; min-height:22px; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:900; }
   .ch-badge.blog { background:#ede9fe; color:#7c3aed; }
   .ch-badge.newsletter { background:#fce7f3; color:#db2777; }
@@ -81,10 +95,13 @@
   .qc-badge { margin-left:auto; }
   .qc-ok { background:#dcfce7; color:#15803d; }
   .qc-fail { background:#fee2e2; color:#dc2626; }
+  .count-badge { display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:20px; padding:0 6px; border-radius:999px; background:var(--primary); color:#fff; font-size:11px; font-weight:900; margin-left:6px; vertical-align:middle; }
   .empty { text-align:center; color:#9aa4b6; font-size:13px; padding:32px 8px; }
   .toast { position:fixed; bottom:24px; right:24px; background:#111827; color:#fff; padding:12px 18px; border-radius:10px; font-size:13px; font-weight:800; transform:translateY(80px); opacity:0; transition:all .25s; z-index:999; }
   .toast.show { transform:translateY(0); opacity:1; }
-  @media (max-width:1100px) { .page-grid { grid-template-columns:1fr; } }
+  .progress-bar-wrap { background:#e8eef9; border-radius:999px; height:6px; margin-top:14px; overflow:hidden; }
+  .progress-bar { height:100%; border-radius:999px; background:var(--primary); transition:width .4s; }
+
   @media (max-width:760px) {
     body { display:block; } .sidebar { position:static; width:100%; height:auto; }
     .sidebar-section:first-of-type { display:grid; grid-template-columns:repeat(2,1fr); }
@@ -92,20 +109,20 @@
     .sidebar-section.secondary { display:none; } .main-wrap { width:100%; margin-left:0; }
     .topbar { height:auto; min-height:72px; align-items:flex-start; flex-direction:column; padding:16px 18px; gap:12px; }
     .content { padding:18px; }
+    .gen-section { max-width:100%; }
+    .draft-grid { grid-template-columns:1fr; }
   }
 </style>
 </head>
 <body>
 <nav class="sidebar">
-  <div class="sidebar-logo"><span class="logo-mark">C</span> ContentFlow</div>
+  <a class="sidebar-logo" href="/dashboard"><span class="logo-mark">C</span> ContentFlow</a>
   <div class="sidebar-section">
     <div class="sidebar-label">Workspace</div>
-    <a class="nav-item" href="/dashboard"><span class="nav-icon">▣</span> 대시보드</a>
     <a class="nav-item active" href="/generate"><span class="nav-icon">＋</span> 콘텐츠 생성</a>
     <a class="nav-item" href="/auto-content"><span class="nav-icon">◎</span> 자동 콘텐츠 생성</a>
     <a class="nav-item" href="/history"><span class="nav-icon">▤</span> 콘텐츠 이력</a>
     <a class="nav-item" href="/settings"><span class="nav-icon">⚙</span> 설정</a>
-    <a class="nav-item" href="/onboarding"><span class="nav-icon">◌</span> 온보딩</a>
   </div>
   <div class="sidebar-section secondary">
     <div class="sidebar-label">Channels</div>
@@ -124,48 +141,52 @@
       <p>키워드를 입력해 블로그·뉴스레터·유튜브·인스타그램 초안을 생성합니다</p>
     </div>
     <div class="topbar-actions">
-      <button class="btn-ghost btn-sm" onclick="loadPending()">검수 보드 새로고침</button>
-      <a href="/dashboard"><button class="btn-ghost btn-sm">대시보드</button></a>
+      <a href="/history"><button class="btn-ghost btn-sm">전체 이력</button></a>
     </div>
   </div>
 
   <section class="content">
-    <div class="page-grid">
-      <div class="stack">
-        <div class="panel" id="gen-card">
-          <div class="panel-header">
-            <div>
-              <div class="panel-title">콘텐츠 생성</div>
-              <div class="panel-sub">키워드에서 주제 후보 3개를 생성합니다</div>
-            </div>
-          </div>
-          <div class="panel-body" id="gen-form">
-            <label>키워드</label>
-            <input type="text" id="kw" placeholder="50대 직장인 AI 부업">
-            <label>타겟 감정</label>
-            <input type="text" id="emotion" placeholder="퇴직 불안, 수입 걱정">
-            <label>제외할 내용</label>
-            <input type="text" id="exclude" placeholder="코딩 필요 방법, 고비용 툴">
-            <button class="btn-primary" id="btn-start" onclick="startGeneration()">주제 후보 생성</button>
-            <div id="gen-error" style="color:#dc2626;font-size:13px;margin-top:10px;display:none"></div>
+
+    <!-- ① 생성 워크플로 — 중앙 정렬 단일 컬럼 -->
+    <div class="gen-section">
+      <div class="panel" id="gen-card">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title">콘텐츠 생성</div>
+            <div class="panel-sub">키워드에서 주제 후보 3개를 생성합니다</div>
           </div>
         </div>
-      </div>
-
-      <div class="stack">
-        <div class="panel">
-          <div class="panel-header">
-            <div>
-              <div class="panel-title">검수 대기 콘텐츠</div>
-              <div class="panel-sub">생성 완료 후 이 목록에서 초안을 확인합니다</div>
-            </div>
-          </div>
-          <div class="panel-body">
-            <div class="draft-list" id="draft-list"><div class="empty">로딩 중...</div></div>
-          </div>
+        <div class="panel-body" id="gen-form">
+          <label>키워드</label>
+          <input type="text" id="kw" placeholder="50대 직장인 AI 부업">
+          <label>타겟 감정</label>
+          <input type="text" id="emotion" placeholder="퇴직 불안, 수입 걱정">
+          <label>제외할 내용</label>
+          <input type="text" id="exclude" placeholder="코딩 필요 방법, 고비용 툴">
+          <button class="btn-primary" id="btn-start" onclick="startGeneration()">주제 후보 생성</button>
+          <div id="gen-error" style="color:#dc2626;font-size:13px;margin-top:10px;display:none"></div>
         </div>
       </div>
     </div>
+
+    <!-- ② 검수 대기 — 생성 섹션 아래 전체 너비 -->
+    <div class="pending-section" id="pending-section">
+      <div class="panel">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title">검수 대기<span class="count-badge" id="pending-count" style="display:none"></span></div>
+            <div class="panel-sub">생성 완료된 초안을 확인하고 검수합니다</div>
+          </div>
+          <div class="spacer"></div>
+          <button class="btn-ghost btn-sm" onclick="loadPending()">새로고침</button>
+          <a href="/history" style="margin-left:6px"><button class="btn-ghost btn-sm">전체 이력 →</button></a>
+        </div>
+        <div class="panel-body">
+          <div class="draft-grid" id="draft-list"><div class="empty">로딩 중...</div></div>
+        </div>
+      </div>
+    </div>
+
   </section>
 </main>
 
@@ -268,7 +289,7 @@ function showTopicSelection(candidates) {
             <div class="t-badge"># ${esc(t.channel || '')} · ${esc(t.emotion || '')}</div>
           </div>`).join('')}
       </div>
-      <div id="ch-section" style="display:none;margin-top:18px">
+      <div id="ch-section" style="display:none;margin-top:20px">
         <label>생성 채널</label>
         <div class="ch-row">
           <div class="ch-chip selected" data-ch="blog" onclick="toggleCh(this)">블로그</div>
@@ -276,9 +297,9 @@ function showTopicSelection(candidates) {
           <div class="ch-chip selected" data-ch="youtube" onclick="toggleCh(this)">유튜브</div>
           <div class="ch-chip selected" data-ch="shortform" onclick="toggleCh(this)">인스타그램</div>
         </div>
-        <button class="btn-primary" onclick="generateDrafts()">4채널 초안 생성</button>
+        <button class="btn-primary" onclick="generateDrafts()">4채널 초안 생성 시작</button>
       </div>
-      <button class="btn-ghost btn-sm" style="margin-top:12px;width:100%" onclick="resetGenForm()">다시 입력</button>
+      <button class="btn-ghost btn-sm" style="margin-top:14px;width:100%" onclick="resetGenForm()">다시 입력</button>
     </div>`;
   window.topicCandidates = candidates;
   selectedTopicIdx = null;
@@ -298,14 +319,14 @@ async function generateDrafts() {
   if (btn) { btn.disabled = true; btn.textContent = '생성 시작 중...'; }
   try {
     await api('POST', `/api/sessions/${currentSessionId}/generate`, { selected_topic: topic, channels });
-    showGeneratingStatus();
+    showGeneratingStatus(channels.length);
     pollTimer = setInterval(pollSession, 4000);
   } catch(e) {
-    if (btn) { btn.disabled = false; btn.textContent = '4채널 초안 생성'; }
+    if (btn) { btn.disabled = false; btn.textContent = '4채널 초안 생성 시작'; }
     toast(e.message);
   }
 }
-function showGeneratingStatus() {
+function showGeneratingStatus(total) {
   genStartTime = Date.now();
   const card = document.getElementById('gen-card');
   card.innerHTML = `
@@ -317,14 +338,16 @@ function showGeneratingStatus() {
     </div>
     <div class="panel-body">
       <div class="status-box">
-        <div class="status-text"><span class="spinner"></span>LLM 작업 중</div>
-        <div class="status-sub" id="gen-current-label">원본 기획 패키지를 생성합니다.</div>
-        <div id="gen-elapsed" style="margin-top:10px;font-size:26px;font-weight:900;color:#4f7cff">0:00</div>
+        <div class="status-text"><span class="spinner"></span><span id="gen-current-label">원본 기획 패키지 생성 중</span></div>
+        <div class="elapsed" id="gen-elapsed">0:00</div>
+        <div class="progress-bar-wrap">
+          <div class="progress-bar" id="gen-progress-bar" style="width:0%"></div>
+        </div>
+        <div class="status-sub" id="poll-status" style="margin-top:10px"></div>
       </div>
-      <div id="poll-status" style="margin-top:12px;font-size:12px;color:#687386;text-align:center;line-height:1.6"></div>
       <div class="generation-actions">
-        <button class="btn-ghost btn-sm" id="btn-cancel-generation" onclick="cancelCurrentGeneration()">생성 중단</button>
-        <button class="btn-danger btn-sm" onclick="deleteCurrentSession()">세션 삭제</button>
+        <button class="btn-ghost" id="btn-cancel-generation" onclick="cancelCurrentGeneration()">생성 중단</button>
+        <button class="btn-danger" onclick="deleteCurrentSession()">세션 삭제</button>
       </div>
     </div>`;
   clockTimer = setInterval(() => {
@@ -366,13 +389,18 @@ function renderGenerationProgress(data) {
   const total = data.generation_total || 4;
   const current = data.generation_current_channel;
   const currentLabel = current === 'source_package' ? '원본 기획 패키지' : (current ? channelLabel(current) : '다음 단계 준비');
+
   const labelEl = document.getElementById('gen-current-label');
-  if (labelEl) labelEl.textContent = current === 'source_package' ? '원본 기획 패키지를 생성합니다.' : `${currentLabel} 초안을 생성합니다.`;
-  const el = document.getElementById('poll-status');
-  if (!el) return;
+  if (labelEl) labelEl.textContent = `${currentLabel} 생성 중`;
+
+  const bar = document.getElementById('gen-progress-bar');
+  if (bar) bar.style.width = `${Math.round((done / total) * 100)}%`;
+
+  const statusEl = document.getElementById('poll-status');
+  if (!statusEl) return;
   const drafts = data.drafts || [];
-  const draftLine = drafts.length ? drafts.map(d => `${channelLabel(d.channel_type)} 완료`).join(' · ') : '아직 저장된 초안 없음';
-  el.innerHTML = `<div>진행률: ${done}/${total} · 현재 단계: ${esc(currentLabel)}</div><div style="margin-top:4px;color:#98a1b3">${esc(draftLine)}</div>`;
+  const draftLine = drafts.map(d => channelLabel(d.channel_type)).join(' · ');
+  statusEl.textContent = draftLine ? `완료: ${draftLine}` : `${done}/${total} 진행 중`;
 }
 function onGenerationDone(data) {
   clearInterval(clockTimer);
@@ -383,7 +411,7 @@ function onGenerationDone(data) {
     <div class="panel-header">
       <div>
         <div class="panel-title">생성 완료</div>
-        <div class="panel-sub">검수 대기 콘텐츠에서 초안을 확인합니다</div>
+        <div class="panel-sub">아래 검수 대기 목록에서 초안을 확인하세요</div>
       </div>
     </div>
     <div class="panel-body">
@@ -391,9 +419,11 @@ function onGenerationDone(data) {
         <div class="status-text" style="color:#16a34a">초안 ${data.drafts?.length || 0}개 생성 완료</div>
         <div class="status-sub">소요 시간 ${timeStr}</div>
       </div>
-      <button class="btn-primary" onclick="resetGenForm()">콘텐츠 생성</button>
+      <button class="btn-primary" onclick="resetGenForm()" style="margin-top:16px">새 콘텐츠 생성</button>
     </div>`;
-  loadPending();
+  loadPending().then(() => {
+    document.getElementById('pending-section')?.scrollIntoView({ behavior:'smooth', block:'start' });
+  });
 }
 function showTerminalState(title, message, neutral) {
   const card = document.getElementById('gen-card');
@@ -410,7 +440,7 @@ function showTerminalState(title, message, neutral) {
         <div class="status-sub">${esc(message)}</div>
       </div>
       <div class="generation-actions">
-        <button class="btn-primary" onclick="resetGenForm()">콘텐츠 생성</button>
+        <button class="btn-primary" onclick="resetGenForm()">새 콘텐츠 생성</button>
         <button class="btn-danger" onclick="deleteCurrentSession()">세션 삭제</button>
       </div>
     </div>`;
@@ -471,6 +501,13 @@ async function loadPending() {
   list.innerHTML = '<div class="empty">로딩 중...</div>';
   try {
     const drafts = await api('GET', `/api/drafts/pending?user_id=${userId}`);
+    const countEl = document.getElementById('pending-count');
+    if (drafts.length) {
+      countEl.textContent = drafts.length;
+      countEl.style.display = 'inline-flex';
+    } else {
+      countEl.style.display = 'none';
+    }
     if (!drafts.length) {
       list.innerHTML = '<div class="empty">검수 대기 초안이 없습니다.</div>';
       return;
@@ -480,7 +517,7 @@ async function loadPending() {
       const sourceType = d.source_type === 'research' ? 'research' : 'manual';
       const sourceLabel = d.source_label || (sourceType === 'research' ? '자동 리서치' : '수동 생성');
       return `
-        <div class="draft-card" onclick="location.href='/history'">
+        <div class="draft-card" onclick="openDraftModal('${esc(d.id)}','${esc(d.channel_type)}','${esc(d.title||'')}',{onReview:loadPending})">
           <div class="draft-meta">
             <span class="ch-badge ${esc(d.channel_type)}">${labels[d.channel_type] || esc(d.channel_type)}</span>
             <span class="source-badge ${sourceType}">${esc(sourceLabel)}</span>
@@ -497,5 +534,6 @@ async function loadPending() {
   if (await requireAuth()) loadPending();
 })();
 </script>
+<script src="/frontend/draft-modal.js"></script>
 </body>
 </html>
