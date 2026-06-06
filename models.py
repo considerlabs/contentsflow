@@ -113,6 +113,9 @@ class ContentSession(Base):
     selected_topic   = Column(JSON)   # 사용자가 선택한 주제
     status           = Column(String(50), default="pending")
     error_message    = Column(Text)
+    generation_current_channel = Column(String(50))
+    generation_done  = Column(Integer, default=0)
+    generation_total = Column(Integer, default=0)
     created_at       = Column(DateTime(timezone=True), server_default=func.now())
     updated_at       = Column(DateTime(timezone=True), onupdate=func.now())
 

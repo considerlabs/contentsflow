@@ -496,6 +496,8 @@ async def select_proposal(
     proposal = result.scalar_one_or_none()
     if not proposal or proposal.user_id != user.id:
         raise HTTPException(status_code=404, detail="주제 제안을 찾을 수 없습니다.")
+    if proposal.status in {"generating", "generated"} and proposal.session_id:
+        return {"status": proposal.status, "session_id": str(proposal.session_id)}
 
     selected_topic = {
         "title": proposal.title,
@@ -520,6 +522,9 @@ async def select_proposal(
         selected_topic=selected_topic,
         status="generating",
         error_message=None,
+        generation_current_channel="source_package",
+        generation_done=0,
+        generation_total=len(body.channels),
     )
     db.add(session)
     proposal.status = "generating"

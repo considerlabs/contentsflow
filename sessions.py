@@ -11,9 +11,16 @@ import uuid
 from database import get_db
 from models import (
     ContentSession, ContentDraft, UserPersona,
-    Category, Keyword, ReviewLog, User
+    Category, Keyword, ReviewLog, TopicProposal, User
 )
-from agent import SUPPORTED_CHANNELS, generate_topic_candidates, run_pipeline, load_knowledge
+from agent import (
+    SUPPORTED_CHANNELS,
+    generate_draft,
+    generate_source_package,
+    generate_topic_candidates,
+    load_knowledge,
+    run_qc,
+)
 from auth import get_current_user, parse_uuid, require_same_user
 import notion
 
@@ -142,6 +149,9 @@ async def generate_drafts(
     session.selected_topic = body.selected_topic
     session.status         = "generating"
     session.error_message  = None
+    session.generation_done = 0
+    session.generation_total = len(body.channels)
+    session.generation_current_channel = "source_package"
 
     if not body.selected_topic.get("title"):
         raise HTTPException(status_code=400, detail="선택한 주제에 title이 필요합니다.")
@@ -192,52 +202,58 @@ async def _run_generation(
             )
             keywords = [row[0] for row in kw_result.fetchall()]
 
-            # 초안 생성
-            drafts = await run_pipeline(
-                persona.persona_md, persona.style_md, keywords,
-                selected_topic.get("title", ""), input_emotion, input_memo, input_exclude,
-                selected_topic, channels, topic_md=persona.topic_md or ""
+            parsed_user_id = _to_uuid(user_id, "user_id")
+            parsed_session_id = _to_uuid(session_id, "session_id")
+            knowledge = load_knowledge("", persona.persona_md, persona.style_md, keywords, topic_md=persona.topic_md or "")
+
+            result = await db.execute(select(ContentSession).where(ContentSession.id == parsed_session_id))
+            session = result.scalar_one_or_none()
+            if not session:
+                raise RuntimeError("세션을 찾을 수 없습니다.")
+            session.status = "generating"
+            session.error_message = None
+            session.generation_done = 0
+            session.generation_total = len(channels)
+            session.generation_current_channel = "source_package"
+            await db.commit()
+
+            source_package = await generate_source_package(
+                knowledge, selected_topic, input_emotion, input_memo, input_exclude
             )
 
-            # DB 저장
             saved_drafts = []
-            for d in drafts:
+            for ch in channels:
+                result = await db.execute(select(ContentSession).where(ContentSession.id == parsed_session_id))
+                session = result.scalar_one()
+                session.generation_current_channel = ch
+                await db.commit()
+
+                d = await generate_draft(knowledge, source_package, selected_topic, ch, input_emotion, input_memo)
+                qc = await run_qc(d["body_md"], ch)
                 draft = ContentDraft(
-                    session_id    = _to_uuid(session_id, "session_id"),
-                    user_id       = _to_uuid(user_id, "user_id"),
+                    session_id    = parsed_session_id,
+                    user_id       = parsed_user_id,
                     channel_type  = d["channel_type"],
                     title         = d.get("title", ""),
                     body_md       = d["body_md"],
                     body_html     = d.get("body_html") or None,
                     meta          = {"source_package": d.get("source_package")},
-                    qc_passed     = d["qc_passed"],
-                    qc_results    = d["qc_results"],
+                    qc_passed     = qc["passed"],
+                    qc_results    = qc["results"],
                     llm_model     = d["llm_model"],
                     generation_ms = d["generation_ms"],
                     status        = "review"
                 )
                 db.add(draft)
                 saved_drafts.append(draft)
+                await db.flush()
 
-            # 세션 상태 업데이트
-            result  = await db.execute(select(ContentSession).where(ContentSession.id == _to_uuid(session_id, "session_id")))
-            session = result.scalar_one()
-            session.status = "review"
-            session.error_message = None
-            try:
-                from models import TopicProposal
-                proposal_result = await db.execute(
-                    select(TopicProposal).where(TopicProposal.session_id == session.id)
-                )
-                proposal = proposal_result.scalar_one_or_none()
-                if proposal:
-                    proposal.status = "generated"
-            except Exception:
-                pass
-            await db.flush()
+                result = await db.execute(select(ContentSession).where(ContentSession.id == parsed_session_id))
+                session = result.scalar_one()
+                session.generation_done = (session.generation_done or 0) + 1
+                session.generation_current_channel = None
+                await db.commit()
 
-            # 노션 검수 대기 큐 등록 (실패해도 파이프라인 계속)
-            for draft in saved_drafts:
                 try:
                     notion_id = await notion.register_draft(
                         draft_id     = str(draft.id),
@@ -247,8 +263,25 @@ async def _run_generation(
                     )
                     if notion_id:
                         draft.notion_page_id = notion_id
+                        await db.commit()
                 except Exception as exc:
                     draft.revision_memo = f"노션 등록 실패: {exc}"
+                    await db.commit()
+
+            # 세션 상태 업데이트
+            result  = await db.execute(select(ContentSession).where(ContentSession.id == parsed_session_id))
+            session = result.scalar_one()
+            session.status = "review"
+            session.error_message = None
+            session.generation_current_channel = None
+            session.generation_done = len(saved_drafts)
+            session.generation_total = len(channels)
+            proposal_result = await db.execute(
+                select(TopicProposal).where(TopicProposal.session_id == session.id)
+            )
+            proposal = proposal_result.scalar_one_or_none()
+            if proposal:
+                proposal.status = "generated"
 
             await db.commit()
         except Exception as exc:
@@ -261,8 +294,8 @@ async def _run_generation(
                 if session:
                     session.status = "failed"
                     session.error_message = str(exc)
+                    session.generation_current_channel = None
                     try:
-                        from models import TopicProposal
                         proposal_result = await fail_db.execute(
                             select(TopicProposal).where(TopicProposal.session_id == session.id)
                         )
@@ -344,6 +377,9 @@ async def get_session(session_id: str, db: AsyncSession = Depends(get_db), user:
         "topic_candidates": session.topic_candidates,
         "selected_topic":   session.selected_topic,
         "error_message":    session.error_message,
+        "generation_current_channel": session.generation_current_channel,
+        "generation_done":  session.generation_done or 0,
+        "generation_total": session.generation_total or 0,
         "drafts": [
             {
                 "draft_id":     str(d.id),
