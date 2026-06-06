@@ -447,11 +447,12 @@ async def latest_research(db: AsyncSession = Depends(get_db), user: User = Depen
         return {"run": None, "proposals": []}
 
     proposal_result = await db.execute(
-        select(TopicProposal)
+        select(TopicProposal, ContentSession)
+        .outerjoin(ContentSession, ContentSession.id == TopicProposal.session_id)
         .where(TopicProposal.run_id == run.id, TopicProposal.user_id == user.id)
         .order_by(TopicProposal.created_at.asc())
     )
-    proposals = proposal_result.scalars().all()
+    proposal_rows = proposal_result.fetchall()
     return {
         "run": {
             "id": str(run.id),
@@ -472,8 +473,13 @@ async def latest_research(db: AsyncSession = Depends(get_db), user: User = Depen
                 "channels": proposal.channels or list(SUPPORTED_CHANNELS),
                 "status": proposal.status,
                 "session_id": str(proposal.session_id) if proposal.session_id else None,
+                "session_status": session.status if session else None,
+                "generation_current_channel": session.generation_current_channel if session else None,
+                "generation_done": session.generation_done if session else 0,
+                "generation_total": session.generation_total if session else 0,
+                "error_message": session.error_message if session else "",
             }
-            for proposal in proposals
+            for proposal, session in proposal_rows
         ],
     }
 

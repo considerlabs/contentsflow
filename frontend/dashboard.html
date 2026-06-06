@@ -278,6 +278,10 @@
   .research-meta { font-size: 12px; color: #8b96aa; margin-bottom: 12px; line-height: 1.5; }
   .evidence-list { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
   .evidence-item { font-size: 11px; color: #7a8499; line-height: 1.4; }
+  .proposal-progress { margin-top: 10px; padding: 9px 10px; border-radius: 8px; background: #f8fafc; border: 1px solid #e4e9f2; }
+  .proposal-progress-line { height: 6px; border-radius: 999px; background: #e5eaf3; overflow: hidden; margin-top: 7px; }
+  .proposal-progress-fill { height: 100%; background: var(--primary); width: 0%; }
+  .proposal-card-actions { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 10px; }
   .proposal-detail { display: flex; flex-direction: column; gap: 14px; }
   .proposal-section { border: 1px solid var(--line); border-radius: 10px; padding: 14px; background: #f8fafc; }
   .proposal-label { font-size: 11px; font-weight: 900; color: #7a8499; margin-bottom: 7px; text-transform: uppercase; }
@@ -742,6 +746,7 @@ let _clockTimer = null;
 let currentDraftId = null;
 let currentDraftChannel = null;
 let currentResearchProposalId = null;
+let researchRefreshTimer = null;
 
 async function loadResearch() {
   const body = document.getElementById('research-body');
@@ -781,6 +786,7 @@ async function loadResearch() {
     }
     const proposals = data.proposals || [];
     window._researchProposals = proposals;
+    scheduleResearchRefresh(proposals);
     if (!proposals.length) {
       body.innerHTML = '<div class="empty">생성된 주제 제안이 없습니다.</div>';
       return;
@@ -798,14 +804,72 @@ async function loadResearch() {
             <div class="evidence-list">
               ${(p.evidence || []).slice(0, 2).map(ev => `<div class="evidence-item">근거: ${esc(ev.title || ev.url || '')}</div>`).join('')}
             </div>
-            <button class="btn-primary btn-sm" style="margin-top:10px" onclick="event.stopPropagation();openResearchProposal('${p.id}')" ${p.status === 'generating' ? 'disabled' : ''}>
-              ${p.status === 'generating' ? '생성 중' : (p.status === 'generated' ? '생성 완료' : '상세보기·선택')}
-            </button>
+            ${renderProposalProgress(p)}
+            ${renderProposalActions(p)}
           </div>`).join('')}
       </div>`;
   } catch(e) {
     body.innerHTML = `<div class="empty">리서치 로드 실패: ${esc(e.message)}</div>`;
   }
+}
+
+function scheduleResearchRefresh(proposals) {
+  clearTimeout(researchRefreshTimer);
+  const active = proposals.some(p => ['generating', 'cancel_requested'].includes(proposalEffectiveStatus(p)));
+  if (active) {
+    researchRefreshTimer = setTimeout(loadResearch, 5000);
+  }
+}
+
+function proposalEffectiveStatus(proposal) {
+  return proposal.session_status || proposal.status || 'proposed';
+}
+
+function renderProposalProgress(proposal) {
+  const status = proposalEffectiveStatus(proposal);
+  if (!proposal.session_id) return '';
+  const done = proposal.generation_done || 0;
+  const total = proposal.generation_total || (proposal.channels || []).length || 4;
+  const pct = total ? Math.min(100, Math.round((done / total) * 100)) : 0;
+  const current = proposal.generation_current_channel;
+  const currentLabel = current === 'source_package'
+    ? '원본 기획 패키지'
+    : (current ? channelLabel(current) : statusLabel(status));
+  return `
+    <div class="proposal-progress">
+      <div class="evidence-item">상태: ${esc(statusLabel(status))} · ${done}/${total} · 현재: ${esc(currentLabel)}</div>
+      <div class="proposal-progress-line"><div class="proposal-progress-fill" style="width:${pct}%"></div></div>
+    </div>`;
+}
+
+function renderProposalActions(proposal) {
+  const status = proposalEffectiveStatus(proposal);
+  const sessionId = proposal.session_id || '';
+  const canStart = !sessionId || ['cancelled', 'failed'].includes(status);
+  const canCancel = sessionId && ['generating', 'cancel_requested'].includes(status);
+  const canDelete = !!sessionId;
+  return `
+    <div class="proposal-card-actions">
+      <button class="btn-primary btn-sm" onclick="event.stopPropagation();openResearchProposal('${proposal.id}')" ${status === 'generating' ? 'disabled' : ''}>
+        ${status === 'generating' ? '생성 중' : (status === 'review' || status === 'generated' ? '상세보기' : '상세보기·선택')}
+      </button>
+      ${canStart ? `<button class="btn-primary btn-sm" onclick="event.stopPropagation();selectResearchTopic('${proposal.id}')">생성 시작</button>` : ''}
+      ${canCancel ? `<button class="btn-ghost btn-sm" onclick="event.stopPropagation();cancelSessionById('${sessionId}', this)">중지</button>` : ''}
+      ${canDelete ? `<button class="btn-danger btn-sm" onclick="event.stopPropagation();deleteSessionById('${sessionId}')">삭제</button>` : ''}
+    </div>`;
+}
+
+function statusLabel(status) {
+  return {
+    proposed: '선택 가능',
+    selected: '선택됨',
+    generating: '초안 생성 중',
+    cancel_requested: '중단 요청됨',
+    cancelled: '중단됨',
+    generated: '생성 완료',
+    review: '검수 대기',
+    failed: '생성 실패',
+  }[status] || status || '제안됨';
 }
 
 async function runMorningResearch() {
@@ -831,15 +895,8 @@ function openResearchProposal(proposalId) {
   }
   currentResearchProposalId = proposalId;
   document.getElementById('research-modal-title').textContent = proposal.title || '주제 상세';
-  const statusLabel = {
-    proposed: '선택 가능',
-    selected: '선택됨',
-    generating: '초안 생성 중',
-    cancel_requested: '중단 요청됨',
-    cancelled: '중단됨',
-    generated: '생성 완료',
-    failed: '생성 실패',
-  }[proposal.status] || proposal.status || '제안됨';
+  const effectiveStatus = proposalEffectiveStatus(proposal);
+  const displayStatus = statusLabel(effectiveStatus);
   const evidence = proposal.evidence || [];
   document.getElementById('research-modal-body').innerHTML = `
     <div class="proposal-detail">
@@ -868,15 +925,15 @@ function openResearchProposal(proposalId) {
       </div>
     </div>`;
   document.getElementById('research-modal-status').textContent =
-    proposal.session_id ? `${statusLabel} · 세션 ${proposal.session_id}` : statusLabel;
+    proposal.session_id ? `${displayStatus} · 세션 ${proposal.session_id}` : displayStatus;
   const btn = document.getElementById('btn-select-research-topic');
-  const canSelect = !['generating', 'cancel_requested', 'generated'].includes(proposal.status);
+  const canSelect = !proposal.session_id || ['cancelled', 'failed'].includes(effectiveStatus);
   btn.disabled = !canSelect;
-  if (proposal.status === 'generating') {
+  if (effectiveStatus === 'generating') {
     btn.textContent = '생성 중';
-  } else if (proposal.status === 'cancel_requested') {
+  } else if (effectiveStatus === 'cancel_requested') {
     btn.textContent = '중단 처리 중';
-  } else if (proposal.status === 'generated') {
+  } else if (['generated', 'review'].includes(effectiveStatus)) {
     btn.textContent = '이미 생성됨';
   } else {
     btn.textContent = '이 주제로 선택·생성';
@@ -1179,19 +1236,25 @@ function resetGenForm() {
 
 async function cancelCurrentGeneration() {
   if (!currentSessionId) return;
-  const btn = document.getElementById('btn-cancel-generation');
-  if (btn) {
-    btn.disabled = true;
-    btn.textContent = '중단 요청 중...';
+  await cancelSessionById(currentSessionId, document.getElementById('btn-cancel-generation'));
+}
+
+async function cancelSessionById(sessionId, btn = null) {
+  if (!sessionId) return;
+  const targetBtn = btn || null;
+  if (targetBtn) {
+    targetBtn.disabled = true;
+    targetBtn.textContent = '중단 요청 중...';
   }
   try {
-    const res = await api('POST', `/api/sessions/${currentSessionId}/cancel`);
+    const res = await api('POST', `/api/sessions/${sessionId}/cancel`);
     toast(res.status === 'cancel_requested' ? '생성 중단을 요청했습니다' : '이미 종료된 세션입니다');
-    pollSession();
+    if (sessionId === currentSessionId) pollSession();
+    loadResearch();
   } catch(e) {
-    if (btn) {
-      btn.disabled = false;
-      btn.textContent = '생성 중단';
+    if (targetBtn) {
+      targetBtn.disabled = false;
+      targetBtn.textContent = '중지';
     }
     toast(e.message, false);
   }
@@ -1199,14 +1262,21 @@ async function cancelCurrentGeneration() {
 
 async function deleteCurrentSession() {
   if (!currentSessionId) return;
+  await deleteSessionById(currentSessionId);
+}
+
+async function deleteSessionById(sessionId) {
+  if (!sessionId) return;
   if (!confirm('이 생성 세션과 연결된 초안을 삭제할까요? 생성 중이라면 현재 LLM 호출이 끝난 뒤 중단됩니다.')) return;
   try {
-    await api('DELETE', `/api/sessions/${currentSessionId}`);
-    clearInterval(pollTimer);
-    clearInterval(_clockTimer);
+    await api('DELETE', `/api/sessions/${sessionId}`);
+    if (sessionId === currentSessionId) {
+      clearInterval(pollTimer);
+      clearInterval(_clockTimer);
+      currentSessionId = null;
+      resetGenForm();
+    }
     toast('세션을 삭제했습니다');
-    currentSessionId = null;
-    resetGenForm();
     loadResearch();
     loadPending();
     loadOverview();
