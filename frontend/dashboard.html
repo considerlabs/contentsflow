@@ -282,9 +282,19 @@
   .proposal-progress-line { height: 6px; border-radius: 999px; background: #e5eaf3; overflow: hidden; margin-top: 7px; }
   .proposal-progress-fill { height: 100%; background: var(--primary); width: 0%; }
   .proposal-card-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-top: 10px; align-items: stretch; }
-  .proposal-card-actions button { width: 100%; padding-left: 8px; padding-right: 8px; }
+  .proposal-card-actions button {
+    width: 100%;
+    height: 32px;
+    margin-top: 0;
+    padding: 0 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    white-space: nowrap;
+    line-height: 1;
+  }
   .generation-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
-  .generation-actions button { width: 100%; }
+  .generation-actions button { width: 100%; margin-top: 0; }
   .proposal-detail { display: flex; flex-direction: column; gap: 14px; }
   .proposal-section { border: 1px solid var(--line); border-radius: 10px; padding: 14px; background: #f8fafc; }
   .proposal-label { font-size: 11px; font-weight: 900; color: #7a8499; margin-bottom: 7px; text-transform: uppercase; }
