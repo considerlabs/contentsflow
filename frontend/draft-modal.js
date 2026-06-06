@@ -9,7 +9,7 @@
     '.dm-header h2{flex:1;font-size:16px;font-weight:900;margin:0}',
     '.dm-body{padding:18px 22px;overflow-y:auto;flex:1}',
     '.dm-body pre{white-space:pre-wrap;font-family:"Courier New",monospace;font-size:13px;line-height:1.75;background:#f8fafc;border:1px solid #edf1f7;border-radius:9px;padding:16px;margin:0}',
-    '.dm-footer{padding:15px 22px;border-top:1px solid #e7ebf3;display:flex;gap:9px;align-items:flex-end}',
+    '.dm-footer{padding:15px 22px 20px;border-top:1px solid #e7ebf3;display:flex;gap:9px;align-items:flex-end}',
     '.dm-footer textarea{flex:1;min-height:64px;resize:none;font-size:13px;border:1.5px solid #dce2ee;border-radius:8px;padding:8px 12px;font-family:inherit;outline:none}',
     '.dm-actions{display:flex;flex-direction:column;gap:7px}',
     '.dm-btn-close{background:#f0f2f8;color:#445;padding:7px 14px;border-radius:7px;border:none;cursor:pointer;font-size:13px;font-weight:600;flex-shrink:0}',
