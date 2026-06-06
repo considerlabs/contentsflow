@@ -281,7 +281,10 @@
   .proposal-progress { margin-top: 10px; padding: 9px 10px; border-radius: 8px; background: #f8fafc; border: 1px solid #e4e9f2; }
   .proposal-progress-line { height: 6px; border-radius: 999px; background: #e5eaf3; overflow: hidden; margin-top: 7px; }
   .proposal-progress-fill { height: 100%; background: var(--primary); width: 0%; }
-  .proposal-card-actions { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 10px; }
+  .proposal-card-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(72px, 1fr)); gap: 7px; margin-top: 10px; }
+  .proposal-card-actions button { width: 100%; padding-left: 8px; padding-right: 8px; }
+  .generation-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
+  .generation-actions button { width: 100%; }
   .proposal-detail { display: flex; flex-direction: column; gap: 14px; }
   .proposal-section { border: 1px solid var(--line); border-radius: 10px; padding: 14px; background: #f8fafc; }
   .proposal-label { font-size: 11px; font-weight: 900; color: #7a8499; margin-bottom: 7px; text-transform: uppercase; }
@@ -1090,7 +1093,7 @@ function showGeneratingStatus() {
         <div id="gen-elapsed" style="margin-top:10px;font-size:26px;font-weight:900;color:#4f7cff">0:00</div>
       </div>
       <div id="poll-status" style="margin-top:12px;font-size:12px;color:#687386;text-align:center;line-height:1.6"></div>
-      <div class="research-actions" style="justify-content:center;margin-top:14px">
+      <div class="generation-actions">
         <button class="btn-ghost btn-sm" id="btn-cancel-generation" onclick="cancelCurrentGeneration()">생성 중단</button>
         <button class="btn-danger btn-sm" onclick="deleteCurrentSession()">세션 삭제</button>
       </div>
@@ -1152,7 +1155,7 @@ function showTerminalGenerationState(title, subtitle, message, neutral = false) 
         <div class="status-text" style="color:${neutral ? '#d97706' : '#dc2626'}">${esc(title)}</div>
         <div class="status-sub">${esc(message)}</div>
       </div>
-      <div class="research-actions" style="justify-content:center;margin-top:14px">
+      <div class="generation-actions">
         <button class="btn-primary" onclick="resetGenForm()">새 콘텐츠 생성</button>
         <button class="btn-danger" onclick="deleteCurrentSession()">세션 삭제</button>
       </div>
