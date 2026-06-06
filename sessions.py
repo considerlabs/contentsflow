@@ -33,6 +33,38 @@ def _to_uuid(value: Optional[str], field_name: str) -> Optional[uuid.UUID]:
     return parse_uuid(value, field_name)
 
 
+async def _get_owned_session(db: AsyncSession, session_id: str, user: User) -> ContentSession:
+    parsed_session_id = _to_uuid(session_id, "session_id")
+    result = await db.execute(select(ContentSession).where(ContentSession.id == parsed_session_id))
+    session = result.scalar_one_or_none()
+    if not session or session.user_id != user.id:
+        raise HTTPException(status_code=404, detail="세션을 찾을 수 없습니다.")
+    return session
+
+
+async def _session_cancel_requested(db: AsyncSession, session_id: uuid.UUID) -> bool:
+    result = await db.execute(select(ContentSession).where(ContentSession.id == session_id))
+    session = result.scalar_one_or_none()
+    if not session:
+        return True
+    return session.status in {"cancel_requested", "cancelled"}
+
+
+async def _mark_session_cancelled(db: AsyncSession, session_id: uuid.UUID, message: str = "사용자가 생성을 중단했습니다.") -> None:
+    result = await db.execute(select(ContentSession).where(ContentSession.id == session_id))
+    session = result.scalar_one_or_none()
+    if not session:
+        return
+    session.status = "cancelled"
+    session.error_message = message
+    session.generation_current_channel = None
+    proposal_result = await db.execute(select(TopicProposal).where(TopicProposal.session_id == session.id))
+    proposal = proposal_result.scalar_one_or_none()
+    if proposal:
+        proposal.status = "cancelled"
+    await db.commit()
+
+
 # ── 스키마 ───────────────────────────────────
 class SessionCreate(BaseModel):
     user_id:       str
@@ -220,15 +252,27 @@ async def _run_generation(
             source_package = await generate_source_package(
                 knowledge, selected_topic, input_emotion, input_memo, input_exclude
             )
+            if await _session_cancel_requested(db, parsed_session_id):
+                await _mark_session_cancelled(db, parsed_session_id)
+                return
 
             saved_drafts = []
             for ch in channels:
+                if await _session_cancel_requested(db, parsed_session_id):
+                    await _mark_session_cancelled(db, parsed_session_id)
+                    return
+
                 result = await db.execute(select(ContentSession).where(ContentSession.id == parsed_session_id))
-                session = result.scalar_one()
+                session = result.scalar_one_or_none()
+                if not session:
+                    return
                 session.generation_current_channel = ch
                 await db.commit()
 
                 d = await generate_draft(knowledge, source_package, selected_topic, ch, input_emotion, input_memo)
+                if await _session_cancel_requested(db, parsed_session_id):
+                    await _mark_session_cancelled(db, parsed_session_id)
+                    return
                 qc = await run_qc(d["body_md"], ch)
                 draft = ContentDraft(
                     session_id    = parsed_session_id,
@@ -249,7 +293,9 @@ async def _run_generation(
                 await db.flush()
 
                 result = await db.execute(select(ContentSession).where(ContentSession.id == parsed_session_id))
-                session = result.scalar_one()
+                session = result.scalar_one_or_none()
+                if not session:
+                    return
                 session.generation_done = (session.generation_done or 0) + 1
                 session.generation_current_channel = None
                 await db.commit()
@@ -353,7 +399,34 @@ async def review_draft(
     return {"status": body.action, "draft_id": draft_id}
 
 
-# ── 4. 세션 상태 조회 ─────────────────────────
+# ── 4. 세션 중단/삭제 ─────────────────────────
+@router.post("/{session_id}/cancel")
+async def cancel_session(session_id: str, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
+    session = await _get_owned_session(db, session_id, user)
+    if session.status in {"review", "failed", "cancelled"}:
+        return {"status": session.status, "session_id": session_id}
+    session.status = "cancel_requested"
+    session.error_message = "사용자가 생성을 중단했습니다. 현재 LLM 호출이 끝나면 안전하게 멈춥니다."
+    proposal_result = await db.execute(select(TopicProposal).where(TopicProposal.session_id == session.id))
+    proposal = proposal_result.scalar_one_or_none()
+    if proposal:
+        proposal.status = "cancel_requested"
+    return {"status": "cancel_requested", "session_id": session_id}
+
+
+@router.delete("/{session_id}")
+async def delete_session(session_id: str, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
+    session = await _get_owned_session(db, session_id, user)
+    proposal_result = await db.execute(select(TopicProposal).where(TopicProposal.session_id == session.id))
+    proposal = proposal_result.scalar_one_or_none()
+    if proposal:
+        proposal.status = "proposed"
+        proposal.session_id = None
+    await db.delete(session)
+    return {"status": "deleted", "session_id": session_id}
+
+
+# ── 5. 세션 상태 조회 ─────────────────────────
 @router.get("/{session_id}")
 async def get_session(session_id: str, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
     parsed_session_id = _to_uuid(session_id, "session_id")

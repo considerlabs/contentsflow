@@ -835,6 +835,8 @@ function openResearchProposal(proposalId) {
     proposed: '선택 가능',
     selected: '선택됨',
     generating: '초안 생성 중',
+    cancel_requested: '중단 요청됨',
+    cancelled: '중단됨',
     generated: '생성 완료',
     failed: '생성 실패',
   }[proposal.status] || proposal.status || '제안됨';
@@ -868,11 +870,17 @@ function openResearchProposal(proposalId) {
   document.getElementById('research-modal-status').textContent =
     proposal.session_id ? `${statusLabel} · 세션 ${proposal.session_id}` : statusLabel;
   const btn = document.getElementById('btn-select-research-topic');
-  const canSelect = !['generating', 'generated'].includes(proposal.status);
+  const canSelect = !['generating', 'cancel_requested', 'generated'].includes(proposal.status);
   btn.disabled = !canSelect;
-  btn.textContent = proposal.status === 'generating'
-    ? '생성 중'
-    : (proposal.status === 'generated' ? '이미 생성됨' : '이 주제로 선택·생성');
+  if (proposal.status === 'generating') {
+    btn.textContent = '생성 중';
+  } else if (proposal.status === 'cancel_requested') {
+    btn.textContent = '중단 처리 중';
+  } else if (proposal.status === 'generated') {
+    btn.textContent = '이미 생성됨';
+  } else {
+    btn.textContent = '이 주제로 선택·생성';
+  }
   document.getElementById('research-modal-overlay').classList.add('open');
 }
 
@@ -1025,6 +1033,10 @@ function showGeneratingStatus() {
         <div id="gen-elapsed" style="margin-top:10px;font-size:26px;font-weight:900;color:#4f7cff">0:00</div>
       </div>
       <div id="poll-status" style="margin-top:12px;font-size:12px;color:#687386;text-align:center;line-height:1.6"></div>
+      <div class="research-actions" style="justify-content:center;margin-top:14px">
+        <button class="btn-ghost btn-sm" id="btn-cancel-generation" onclick="cancelCurrentGeneration()">생성 중단</button>
+        <button class="btn-danger btn-sm" onclick="deleteCurrentSession()">세션 삭제</button>
+      </div>
     </div>
   `;
   _clockTimer = setInterval(() => {
@@ -1044,22 +1056,20 @@ async function pollSession() {
     } else if (data.status === 'failed') {
       clearInterval(pollTimer);
       clearInterval(_clockTimer);
-      const card = document.getElementById('gen-card');
-      card.innerHTML = `
-        <div class="panel-header">
-          <div>
-            <div class="panel-title">생성 실패</div>
-            <div class="panel-sub">오류 메시지를 확인합니다</div>
-          </div>
-        </div>
-        <div class="panel-body">
-          <div class="status-box" style="background:#fef2f2;border-color:#fecaca">
-            <div class="status-text" style="color:#dc2626">초안 생성이 중단됐습니다</div>
-            <div class="status-sub">${esc(data.error_message || '알 수 없는 오류')}</div>
-          </div>
-          <button class="btn-primary" onclick="resetGenForm()">다시 생성</button>
-        </div>
-      `;
+      showTerminalGenerationState('생성 실패', '오류 메시지를 확인합니다', data.error_message || '알 수 없는 오류', false);
+    } else if (data.status === 'cancel_requested') {
+      renderGenerationProgress(data);
+      const el = document.getElementById('poll-status');
+      if (el) el.innerHTML += '<div style="margin-top:6px;color:#d97706">중단 요청됨 · 현재 LLM 호출이 끝나면 멈춥니다.</div>';
+      loadPending();
+      loadOverview();
+    } else if (data.status === 'cancelled') {
+      clearInterval(pollTimer);
+      clearInterval(_clockTimer);
+      showTerminalGenerationState('생성 중단됨', '이미 완성된 초안은 검수 보드에 남아 있습니다', data.error_message || '사용자가 생성을 중단했습니다.', true);
+      loadResearch();
+      loadPending();
+      loadOverview();
     } else {
       renderGenerationProgress(data);
       loadPending();
@@ -1069,6 +1079,28 @@ async function pollSession() {
     clearInterval(pollTimer);
     toast(e.message, false);
   }
+}
+
+function showTerminalGenerationState(title, subtitle, message, neutral = false) {
+  const card = document.getElementById('gen-card');
+  card.innerHTML = `
+    <div class="panel-header">
+      <div>
+        <div class="panel-title">${esc(title)}</div>
+        <div class="panel-sub">${esc(subtitle)}</div>
+      </div>
+    </div>
+    <div class="panel-body">
+      <div class="status-box" style="background:${neutral ? '#fff7ed' : '#fef2f2'};border-color:${neutral ? '#fed7aa' : '#fecaca'}">
+        <div class="status-text" style="color:${neutral ? '#d97706' : '#dc2626'}">${esc(title)}</div>
+        <div class="status-sub">${esc(message)}</div>
+      </div>
+      <div class="research-actions" style="justify-content:center;margin-top:14px">
+        <button class="btn-primary" onclick="resetGenForm()">새 콘텐츠 생성</button>
+        <button class="btn-danger" onclick="deleteCurrentSession()">세션 삭제</button>
+      </div>
+    </div>
+  `;
 }
 
 function renderGenerationProgress(data) {
@@ -1143,6 +1175,44 @@ function resetGenForm() {
       <div id="gen-error" style="color:#dc2626;font-size:13px;margin-top:10px;display:none"></div>
     </div>
   `;
+}
+
+async function cancelCurrentGeneration() {
+  if (!currentSessionId) return;
+  const btn = document.getElementById('btn-cancel-generation');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = '중단 요청 중...';
+  }
+  try {
+    const res = await api('POST', `/api/sessions/${currentSessionId}/cancel`);
+    toast(res.status === 'cancel_requested' ? '생성 중단을 요청했습니다' : '이미 종료된 세션입니다');
+    pollSession();
+  } catch(e) {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = '생성 중단';
+    }
+    toast(e.message, false);
+  }
+}
+
+async function deleteCurrentSession() {
+  if (!currentSessionId) return;
+  if (!confirm('이 생성 세션과 연결된 초안을 삭제할까요? 생성 중이라면 현재 LLM 호출이 끝난 뒤 중단됩니다.')) return;
+  try {
+    await api('DELETE', `/api/sessions/${currentSessionId}`);
+    clearInterval(pollTimer);
+    clearInterval(_clockTimer);
+    toast('세션을 삭제했습니다');
+    currentSessionId = null;
+    resetGenForm();
+    loadResearch();
+    loadPending();
+    loadOverview();
+  } catch(e) {
+    toast(e.message, false);
+  }
 }
 
 function showGenError(msg) {

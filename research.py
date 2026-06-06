@@ -496,7 +496,7 @@ async def select_proposal(
     proposal = result.scalar_one_or_none()
     if not proposal or proposal.user_id != user.id:
         raise HTTPException(status_code=404, detail="주제 제안을 찾을 수 없습니다.")
-    if proposal.status in {"generating", "generated"} and proposal.session_id:
+    if proposal.status in {"generating", "generated", "cancel_requested"} and proposal.session_id:
         return {"status": proposal.status, "session_id": str(proposal.session_id)}
 
     selected_topic = {
