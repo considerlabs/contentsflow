@@ -1,7 +1,8 @@
 # ContentFlow 작업 인수인계
 
 ## 작업 일자
-2026-06-06
+2026-06-06 (최초)  
+2026-06-06 (버그 수정 — 모달 버튼 클리핑)
 
 ---
 
@@ -23,6 +24,7 @@ LLM 설정 영구 저장 API 모듈.
 - `window.closeDraftModal()` — 모달 닫기
 - 내부적으로 localStorage 토큰 읽어 API 호출 (페이지 auth 함수에 의존하지 않음)
 - `status === 'review'`인 초안에서만 검수 영역(수정 요청 textarea + 3개 버튼) 표시
+- **버그 수정**: `.dm-footer padding-bottom: 15px → 20px` — `border-radius:14px` + `overflow:hidden` 조합이 하단 모서리 14px 이내 콘텐츠를 클리핑하는 현상 수정. 반려 버튼 기준 모달 하단까지 20px 확보.
 
 ---
 
@@ -126,9 +128,10 @@ onReview 콜백 → 목록 새로고침
 | 항목 | 상태 | 비고 |
 |---|---|---|
 | 발행 채널 연동 | 미구현 | 승인 시 `publish_failed`로 떨어짐. 실제 블로그/뉴스레터 발행 API 연동 필요 |
-| settings.json gitignore | 권장 | API 키 포함 파일, 현재 미처리 |
+| settings.json gitignore | ✅ 완료 | `.gitignore`에 추가됨 |
 | Claude/Gemini LLM 실사용 테스트 | 미완료 | API 키 입력 후 실제 생성 테스트 필요 |
 | 대시보드 초안 삭제 기능 | 제거됨 | 공통 모달 전환 과정에서 "빈 초안 삭제" 버튼 로직 미이식 |
+| 모달 버튼 클리핑 | ✅ 완료 | `draft-modal.js` padding-bottom 수정, Playwright로 검증 완료 |
 
 ---
 
