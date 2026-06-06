@@ -256,6 +256,13 @@ async def _run_generation(
                 await _mark_session_cancelled(db, parsed_session_id)
                 return
 
+            proposal_result = await db.execute(
+                select(TopicProposal).where(TopicProposal.session_id == parsed_session_id)
+            )
+            source_proposal = proposal_result.scalar_one_or_none()
+            source_type = "research" if source_proposal else "manual"
+            source_label = "자동 리서치" if source_type == "research" else "수동 생성"
+
             saved_drafts = []
             for ch in channels:
                 if await _session_cancel_requested(db, parsed_session_id):
@@ -281,7 +288,11 @@ async def _run_generation(
                     title         = d.get("title", ""),
                     body_md       = d["body_md"],
                     body_html     = d.get("body_html") or None,
-                    meta          = {"source_package": d.get("source_package")},
+                    meta          = {
+                        "source_package": d.get("source_package"),
+                        "source_type": source_type,
+                        "source_label": source_label,
+                    },
                     qc_passed     = qc["passed"],
                     qc_results    = qc["results"],
                     llm_model     = d["llm_model"],

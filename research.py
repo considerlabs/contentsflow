@@ -206,7 +206,7 @@ async def _notify_email(user: User, proposals: list[TopicProposal]) -> bool:
         if proposal.message:
             lines.append(f"   - {proposal.message}")
         lines.append("")
-    lines.append(f"선택 및 생성: {APP_BASE_URL}/dashboard")
+    lines.append(f"선택 및 생성: {APP_BASE_URL}/auto-content")
 
     msg = EmailMessage()
     msg["Subject"] = "[ContentFlow] 오늘의 콘텐츠 주제 5개"
@@ -231,7 +231,7 @@ async def _notify_notion(proposals: list[TopicProposal]) -> bool:
     title = "ContentFlow 오늘의 콘텐츠 주제 5개"
     body = "\n".join([f"{idx}. {p.title}\n{p.message or ''}" for idx, p in enumerate(proposals, 1)])
     try:
-        await notion.register_topic_digest(title, body, f"{APP_BASE_URL}/dashboard")
+        await notion.register_topic_digest(title, body, f"{APP_BASE_URL}/auto-content")
         return True
     except Exception:
         return False

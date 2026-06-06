@@ -85,6 +85,14 @@ async def history(request: Request):
         target = f"{target}?{request.url.query}"
     return RedirectResponse(url=target)
 
+@app.get("/generate")
+async def generate_page():
+    return RedirectResponse(url="/frontend/generate.html")
+
+@app.get("/auto-content")
+async def auto_content_page():
+    return RedirectResponse(url="/frontend/auto_content.html")
+
 @app.get("/settings")
 async def settings_page():
     return RedirectResponse(url="/frontend/settings.html")

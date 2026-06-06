@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ContentFlow — 자동 콘텐츠 생성</title>
+<style>
+  *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+  :root {
+    --bg:#f5f7fb; --panel:#fff; --line:#e7ebf3; --text:#1f2433; --muted:#7a8499;
+    --nav:#171c2c; --nav-soft:#22283c; --primary:#4f7cff; --primary-dark:#2f5ee8;
+    --green:#16a34a; --amber:#d97706; --red:#dc2626;
+  }
+  body { font-family:-apple-system,BlinkMacSystemFont,'Noto Sans KR',sans-serif; background:var(--bg); color:var(--text); min-height:100vh; display:flex; }
+  button { border:none; border-radius:8px; cursor:pointer; font-size:13px; font-weight:800; font-family:inherit; transition:background .15s,color .15s,transform .15s; }
+  button:active { transform:translateY(1px); }
+  .sidebar { width:244px; background:var(--nav); color:#aeb8d1; height:100vh; position:fixed; inset:0 auto 0 0; display:flex; flex-direction:column; z-index:50; }
+  .sidebar-logo { height:72px; padding:0 22px; display:flex; align-items:center; gap:10px; border-bottom:1px solid #2b3147; color:#fff; font-size:20px; font-weight:900; }
+  .logo-mark { width:30px; height:30px; display:grid; place-items:center; border-radius:8px; background:var(--primary); color:#fff; font-size:15px; }
+  .sidebar-section { padding:14px 0 6px; }
+  .sidebar-label { padding:8px 22px; color:#66718e; font-size:11px; font-weight:800; text-transform:uppercase; }
+  .nav-item { display:flex; align-items:center; gap:10px; height:38px; padding:0 20px; color:#aeb8d1; font-size:13px; font-weight:800; text-decoration:none; border-left:3px solid transparent; }
+  .nav-item:hover, .nav-item.active { background:var(--nav-soft); color:#fff; }
+  .nav-item.active { border-left-color:var(--primary); }
+  .nav-icon { width:18px; text-align:center; font-size:14px; }
+  .sidebar-bottom { margin-top:auto; padding:16px 22px; border-top:1px solid #2b3147; font-size:12px; color:#65708c; line-height:1.5; }
+  .main-wrap { margin-left:244px; width:calc(100% - 244px); min-height:100vh; }
+  .topbar { height:72px; background:#fff; border-bottom:1px solid var(--line); padding:0 28px; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:20; }
+  .topbar-left h1 { font-size:20px; font-weight:900; color:#151a2b; }
+  .topbar-left p { font-size:13px; color:var(--muted); margin-top:3px; }
+  .topbar-actions { display:flex; align-items:center; gap:8px; }
+  .content { padding:24px 28px 36px; max-width:1440px; }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+  .panel-header { min-height:54px; padding:16px 18px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:10px; }
+  .panel-title { font-size:15px; font-weight:900; color:#171c2c; }
+  .panel-sub { font-size:12px; color:var(--muted); margin-top:2px; }
+  .panel-header .spacer { flex:1; }
+  .panel-body { padding:18px; }
+  .btn-primary { background:var(--primary); color:#fff; min-width:120px; height:36px; padding:0 14px; }
+  .btn-primary:hover { background:var(--primary-dark); }
+  .btn-primary:disabled { background:#9db5ff; cursor:not-allowed; }
+  .btn-ghost { background:#eef2f8; color:#4d586d; height:36px; padding:0 14px; }
+  .btn-ghost:hover { background:#e3e8f1; }
+  .btn-danger { background:#fee2e2; color:#dc2626; height:36px; padding:0 14px; }
+  .btn-sm { height:32px; padding:0 12px; font-size:12px; }
+  .research-meta { font-size:12px; color:#8b96aa; margin-bottom:12px; line-height:1.5; }
+  .topic-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+  .topic-card { border:1.5px solid #dfe5f0; border-radius:10px; padding:14px; cursor:pointer; background:#fff; min-height:180px; display:flex; flex-direction:column; }
+  .topic-card:hover { border-color:#9db5ff; background:#f7f9ff; }
+  .topic-card.generating { opacity:.78; }
+  .t-title { font-size:14px; font-weight:900; color:#1f2433; line-height:1.45; }
+  .t-msg { font-size:12px; color:var(--muted); margin-top:6px; line-height:1.5; }
+  .t-badge { display:inline-block; margin-top:8px; font-size:11px; color:var(--primary); font-weight:900; line-height:1.4; }
+  .evidence-list { margin-top:8px; display:flex; flex-direction:column; gap:4px; }
+  .evidence-item { font-size:11px; color:#7a8499; line-height:1.4; }
+  .proposal-progress { margin-top:auto; padding:9px 10px; border-radius:8px; background:#f8fafc; border:1px solid #e4e9f2; }
+  .proposal-progress-line { height:6px; border-radius:999px; background:#e5eaf3; overflow:hidden; margin-top:7px; }
+  .proposal-progress-fill { height:100%; background:var(--primary); width:0%; }
+  .proposal-card-actions { display:grid; grid-template-columns:1fr 1fr; gap:7px; margin-top:10px; align-items:stretch; }
+  .proposal-card-actions button { width:100%; min-width:0; margin-top:0; padding:0 8px; display:flex; align-items:center; justify-content:center; white-space:nowrap; line-height:1; }
+  .status-box { background:#f8faff; border:1px solid #cbd8ff; border-radius:10px; padding:16px; text-align:center; }
+  .status-text { font-size:14px; font-weight:900; color:var(--primary); }
+  .status-sub { font-size:12px; color:var(--muted); margin-top:6px; line-height:1.5; }
+  .spinner { display:inline-block; width:16px; height:16px; border:2px solid #c7d9ff; border-top-color:var(--primary); border-radius:50%; animation:spin .8s linear infinite; margin-right:8px; vertical-align:middle; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .overlay { position:fixed; inset:0; background:rgba(15,23,42,.42); z-index:200; display:none; align-items:center; justify-content:center; padding:24px; }
+  .overlay.open { display:flex; }
+  .modal { background:#fff; border-radius:14px; width:100%; max-width:780px; max-height:90vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 24px 80px rgba(15,23,42,.24); }
+  .modal-header { padding:18px 22px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:10px; }
+  .modal-header h2 { flex:1; font-size:16px; font-weight:900; }
+  .modal-body { padding:18px 22px; overflow-y:auto; flex:1; }
+  .modal-footer { padding:15px 22px; border-top:1px solid var(--line); display:flex; gap:9px; align-items:center; justify-content:flex-end; }
+  .proposal-detail { display:flex; flex-direction:column; gap:14px; }
+  .proposal-section { border:1px solid var(--line); border-radius:10px; padding:14px; background:#f8fafc; }
+  .proposal-label { font-size:11px; font-weight:900; color:#7a8499; margin-bottom:7px; text-transform:uppercase; }
+  .proposal-text { font-size:13px; line-height:1.65; color:#253047; white-space:pre-wrap; }
+  .proposal-evidence { display:flex; flex-direction:column; gap:8px; }
+  .proposal-evidence a { color:var(--primary); font-size:12px; font-weight:800; text-decoration:none; word-break:break-all; }
+  .badge { display:inline-flex; align-items:center; min-height:22px; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:900; }
+  .badge.research { background:#dcfce7; color:#15803d; }
+  .empty { text-align:center; color:#9aa4b6; font-size:13px; padding:32px 8px; }
+  .toast { position:fixed; bottom:24px; right:24px; background:#111827; color:#fff; padding:12px 18px; border-radius:10px; font-size:13px; font-weight:800; transform:translateY(80px); opacity:0; transition:all .25s; z-index:999; }
+  .toast.show { transform:translateY(0); opacity:1; }
+  @media (max-width:1000px) { .topic-grid { grid-template-columns:1fr; } }
+  @media (max-width:760px) {
+    body { display:block; } .sidebar { position:static; width:100%; height:auto; }
+    .sidebar-section:first-of-type { display:grid; grid-template-columns:repeat(2,1fr); }
+    .sidebar-section:first-of-type .sidebar-label { grid-column:1/-1; }
+    .sidebar-section.secondary { display:none; } .main-wrap { width:100%; margin-left:0; }
+    .topbar { height:auto; min-height:72px; align-items:flex-start; flex-direction:column; padding:16px 18px; gap:12px; }
+    .content { padding:18px; }
+  }
+</style>
+</head>
+<body>
+<nav class="sidebar">
+  <div class="sidebar-logo"><span class="logo-mark">C</span> ContentFlow</div>
+  <div class="sidebar-section">
+    <div class="sidebar-label">Workspace</div>
+    <a class="nav-item" href="/dashboard"><span class="nav-icon">▣</span> 대시보드</a>
+    <a class="nav-item" href="/generate"><span class="nav-icon">＋</span> 콘텐츠 생성</a>
+    <a class="nav-item active" href="/auto-content"><span class="nav-icon">◎</span> 자동 콘텐츠 생성</a>
+    <a class="nav-item" href="/history"><span class="nav-icon">▤</span> 콘텐츠 이력</a>
+    <a class="nav-item" href="/settings"><span class="nav-icon">⚙</span> 설정</a>
+    <a class="nav-item" href="/onboarding"><span class="nav-icon">◌</span> 온보딩</a>
+  </div>
+  <div class="sidebar-section secondary">
+    <div class="sidebar-label">Channels</div>
+    <a class="nav-item" href="/history?channel=blog"><span class="nav-icon">B</span> 블로그</a>
+    <a class="nav-item" href="/history?channel=newsletter"><span class="nav-icon">N</span> 뉴스레터</a>
+    <a class="nav-item" href="/history?channel=youtube"><span class="nav-icon">Y</span> 유튜브</a>
+    <a class="nav-item" href="/history?channel=shortform"><span class="nav-icon">I</span> 인스타그램</a>
+  </div>
+  <div class="sidebar-bottom">v0.2.0<br>qwen3.6:35b-a3b</div>
+</nav>
+
+<main class="main-wrap">
+  <div class="topbar">
+    <div class="topbar-left">
+      <h1>자동 콘텐츠 생성</h1>
+      <p>새벽 리서치 주제를 검토하고 선택한 주제로 4채널 초안을 생성합니다</p>
+    </div>
+    <div class="topbar-actions">
+      <button class="btn-ghost btn-sm" onclick="loadResearch()">새로고침</button>
+      <button class="btn-primary btn-sm" onclick="runMorningResearch()">수동 수집</button>
+    </div>
+  </div>
+
+  <section class="content">
+    <div class="panel">
+      <div class="panel-header">
+        <div>
+          <div class="panel-title">오늘의 리서치 주제</div>
+          <div class="panel-sub">수집 자료 기반 5개 제안과 생성 진행 상태</div>
+        </div>
+        <div class="spacer"></div>
+        <a href="/settings"><button class="btn-ghost btn-sm">리서치 소스 설정</button></a>
+      </div>
+      <div class="panel-body" id="research-body">
+        <div class="empty">리서치 상태를 불러오는 중...</div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div class="overlay" id="research-modal-overlay" onclick="if(event.target===this)closeResearchModal()">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="badge research">자동 리서치</span>
+      <h2 id="research-modal-title">주제 상세</h2>
+      <button class="btn-ghost btn-sm" onclick="closeResearchModal()">닫기</button>
+    </div>
+    <div class="modal-body" id="research-modal-body"></div>
+    <div class="modal-footer">
+      <div id="research-modal-status" style="font-size:12px;color:#7a8499;line-height:1.5;flex:1"></div>
+      <button class="btn-ghost" onclick="closeResearchModal()">취소</button>
+      <button class="btn-primary" id="btn-select-research-topic" onclick="selectCurrentResearchTopic()">이 주제로 선택·생성</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API = '';
+let authToken = localStorage.getItem('cf_access_token') || '';
+let currentUser = null;
+let userId = '';
+let currentResearchProposalId = null;
+let researchRefreshTimer = null;
+
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2400);
+}
+async function api(method, path, body) {
+  const res = await fetch(API + path, {
+    method,
+    headers: {'Content-Type':'application/json', ...(authToken ? {'Authorization':`Bearer ${authToken}`} : {})},
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    const detail = Array.isArray(err.detail)
+      ? err.detail.map(item => item.msg || JSON.stringify(item)).join(', ')
+      : (typeof err.detail === 'object' ? JSON.stringify(err.detail) : err.detail);
+    throw new Error(detail || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+async function requireAuth() {
+  if (!authToken) { location.href = '/onboarding'; return false; }
+  try {
+    currentUser = await api('GET', '/api/users/me');
+    userId = currentUser.id;
+    localStorage.setItem('cf_user_id', userId);
+    if (!currentUser.onboarding_done) { location.href = '/onboarding'; return false; }
+    return true;
+  } catch(e) {
+    localStorage.removeItem('cf_access_token');
+    localStorage.removeItem('cf_user_id');
+    location.href = '/onboarding';
+    return false;
+  }
+}
+function statusLabel(status) {
+  return {
+    proposed:'선택 가능',
+    selected:'선택됨',
+    generating:'초안 생성 중',
+    cancel_requested:'중단 요청됨',
+    cancelled:'중단됨',
+    generated:'생성 완료',
+    review:'검수 대기',
+    failed:'생성 실패',
+  }[status] || status || '제안됨';
+}
+function proposalEffectiveStatus(proposal) {
+  return proposal.session_status || proposal.status || 'proposed';
+}
+function channelLabel(ch) {
+  return { blog:'블로그', newsletter:'뉴스레터', youtube:'유튜브', shortform:'인스타그램' }[ch] || ch;
+}
+async function loadResearch() {
+  const body = document.getElementById('research-body');
+  body.innerHTML = '<div class="empty">리서치 상태를 불러오는 중...</div>';
+  try {
+    const data = await api('GET', '/api/research/latest');
+    if (!data.run) {
+      body.innerHTML = `
+        <div class="research-meta">아직 생성된 오늘의 리서치가 없습니다. 설정에서 RSS/사이트 소스를 추가한 뒤 수동 수집을 실행하거나 새벽 자동 실행을 기다리세요.</div>
+        <button class="btn-primary" onclick="runMorningResearch()">지금 수집</button>`;
+      return;
+    }
+    const run = data.run;
+    if (run.status === 'collecting') {
+      body.innerHTML = `
+        <div class="status-box">
+          <div class="status-text"><span class="spinner"></span>자료 수집 및 주제화 진행 중</div>
+          <div class="status-sub">로컬 LLM이 수집 자료를 분석하고 있습니다.</div>
+        </div>`;
+      researchRefreshTimer = setTimeout(loadResearch, 5000);
+      return;
+    }
+    if (run.status === 'failed') {
+      body.innerHTML = `
+        <div class="status-box" style="background:#fef2f2;border-color:#fecaca">
+          <div class="status-text" style="color:#dc2626">리서치 실패</div>
+          <div class="status-sub">${esc(run.error_message || '오류 메시지가 없습니다.')}</div>
+        </div>
+        <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn-primary" onclick="runMorningResearch()">다시 수집</button>
+          <a href="/settings"><button class="btn-ghost">소스 확인</button></a>
+        </div>`;
+      return;
+    }
+    const proposals = data.proposals || [];
+    window.researchProposals = proposals;
+    scheduleResearchRefresh(proposals);
+    if (!proposals.length) {
+      body.innerHTML = '<div class="empty">생성된 주제 제안이 없습니다.</div>';
+      return;
+    }
+    body.innerHTML = `
+      <div class="research-meta">
+        수집 자료 ${run.item_count || 0}개 · 알림 ${run.notification_sent ? '발송됨' : '미발송'} · ${run.finished_at ? new Date(run.finished_at).toLocaleString() : ''}
+      </div>
+      <div class="topic-grid">
+        ${proposals.map((p, i) => `
+          <div class="topic-card ${proposalEffectiveStatus(p) === 'generating' ? 'generating' : ''}" onclick="openResearchProposal('${p.id}')">
+            <div class="t-title">${i + 1}. ${esc(p.title)}</div>
+            <div class="t-msg">${esc(p.message || '')}</div>
+            <div class="t-badge">${esc(p.rationale || '')}</div>
+            <div class="evidence-list">
+              ${(p.evidence || []).slice(0, 2).map(ev => `<div class="evidence-item">근거: ${esc(ev.title || ev.url || '')}</div>`).join('')}
+            </div>
+            ${renderProposalProgress(p)}
+            ${renderProposalActions(p)}
+          </div>`).join('')}
+      </div>`;
+  } catch(e) {
+    body.innerHTML = `<div class="empty">리서치 로드 실패: ${esc(e.message)}</div>`;
+  }
+}
+function scheduleResearchRefresh(proposals) {
+  clearTimeout(researchRefreshTimer);
+  const active = proposals.some(p => ['generating', 'cancel_requested'].includes(proposalEffectiveStatus(p)));
+  if (active) researchRefreshTimer = setTimeout(loadResearch, 5000);
+}
+function renderProposalProgress(proposal) {
+  const status = proposalEffectiveStatus(proposal);
+  if (!proposal.session_id) return '';
+  const done = proposal.generation_done || 0;
+  const total = proposal.generation_total || (proposal.channels || []).length || 4;
+  const pct = total ? Math.min(100, Math.round((done / total) * 100)) : 0;
+  const current = proposal.generation_current_channel;
+  const currentLabel = current === 'source_package' ? '원본 기획 패키지' : (current ? channelLabel(current) : statusLabel(status));
+  return `
+    <div class="proposal-progress">
+      <div class="evidence-item">상태: ${esc(statusLabel(status))} · ${done}/${total} · 현재: ${esc(currentLabel)}</div>
+      <div class="proposal-progress-line"><div class="proposal-progress-fill" style="width:${pct}%"></div></div>
+    </div>`;
+}
+function renderProposalActions(proposal) {
+  const status = proposalEffectiveStatus(proposal);
+  const sessionId = proposal.session_id || '';
+  const canCancel = sessionId && ['generating', 'cancel_requested'].includes(status);
+  const canDelete = !!sessionId;
+  const secondary = canCancel
+    ? `<button class="btn-ghost btn-sm" onclick="event.stopPropagation();cancelSessionById('${sessionId}', this)">중지</button>`
+    : (canDelete
+      ? `<button class="btn-danger btn-sm" onclick="event.stopPropagation();deleteSessionById('${sessionId}')">삭제</button>`
+      : `<button class="btn-primary btn-sm" onclick="event.stopPropagation();selectResearchTopic('${proposal.id}')">생성 시작</button>`);
+  return `
+    <div class="proposal-card-actions">
+      <button class="btn-primary btn-sm" onclick="event.stopPropagation();openResearchProposal('${proposal.id}')" ${status === 'generating' ? 'disabled' : ''}>상세보기</button>
+      ${secondary}
+    </div>`;
+}
+async function runMorningResearch() {
+  const body = document.getElementById('research-body');
+  body.innerHTML = `
+    <div class="status-box">
+      <div class="status-text"><span class="spinner"></span>자료 수집을 시작했습니다</div>
+      <div class="status-sub">RSS/사이트 수집 후 주제 5개를 생성합니다.</div>
+    </div>`;
+  try {
+    await api('POST', '/api/research/run');
+    researchRefreshTimer = setTimeout(loadResearch, 5000);
+  } catch(e) {
+    body.innerHTML = `<div class="empty">수집 시작 실패: ${esc(e.message)}</div>`;
+  }
+}
+function openResearchProposal(proposalId) {
+  const proposal = (window.researchProposals || []).find(p => p.id === proposalId);
+  if (!proposal) { toast('주제 정보를 찾을 수 없습니다.'); return; }
+  currentResearchProposalId = proposalId;
+  const effectiveStatus = proposalEffectiveStatus(proposal);
+  document.getElementById('research-modal-title').textContent = proposal.title || '주제 상세';
+  document.getElementById('research-modal-body').innerHTML = `
+    <div class="proposal-detail">
+      <div class="proposal-section">
+        <div class="proposal-label">핵심 메시지</div>
+        <div class="proposal-text">${esc(proposal.message || '내용 없음')}</div>
+      </div>
+      <div class="proposal-section">
+        <div class="proposal-label">선정 이유</div>
+        <div class="proposal-text">${esc(proposal.rationale || '내용 없음')}</div>
+      </div>
+      <div class="proposal-section">
+        <div class="proposal-label">근거 자료</div>
+        <div class="proposal-evidence">
+          ${(proposal.evidence || []).length ? (proposal.evidence || []).map((ev, i) => `
+            <div>
+              <div class="proposal-text">${i + 1}. ${esc(ev.title || ev.note || ev.url || '근거 자료')}</div>
+              ${ev.note ? `<div class="proposal-text" style="color:#687386">${esc(ev.note)}</div>` : ''}
+              ${ev.url ? `<a href="${esc(ev.url)}" target="_blank" rel="noopener noreferrer">${esc(ev.url)}</a>` : ''}
+            </div>`).join('') : '<div class="proposal-text">근거 자료가 없습니다.</div>'}
+        </div>
+      </div>
+      <div class="proposal-section">
+        <div class="proposal-label">생성 채널</div>
+        <div class="proposal-text">${(proposal.channels || ['blog','newsletter','youtube','shortform']).map(channelLabel).join(' · ')}</div>
+      </div>
+    </div>`;
+  document.getElementById('research-modal-status').textContent =
+    proposal.session_id ? `${statusLabel(effectiveStatus)} · 세션 ${proposal.session_id}` : statusLabel(effectiveStatus);
+  const btn = document.getElementById('btn-select-research-topic');
+  const canSelect = !proposal.session_id || ['cancelled', 'failed'].includes(effectiveStatus);
+  btn.disabled = !canSelect;
+  btn.textContent = effectiveStatus === 'generating'
+    ? '생성 중'
+    : (['generated', 'review'].includes(effectiveStatus) ? '이미 생성됨' : '이 주제로 선택·생성');
+  document.getElementById('research-modal-overlay').classList.add('open');
+}
+function closeResearchModal() {
+  document.getElementById('research-modal-overlay').classList.remove('open');
+  currentResearchProposalId = null;
+}
+function selectCurrentResearchTopic() {
+  if (!currentResearchProposalId) return;
+  selectResearchTopic(currentResearchProposalId);
+}
+async function selectResearchTopic(proposalId) {
+  try {
+    const btn = document.getElementById('btn-select-research-topic');
+    if (btn) { btn.disabled = true; btn.textContent = '생성 시작 중...'; }
+    const res = await api('POST', `/api/research/proposals/${proposalId}/select`, {
+      channels: ['blog', 'newsletter', 'youtube', 'shortform'],
+    });
+    closeResearchModal();
+    toast(res.status === 'generated' ? '이미 생성된 주제입니다. 검수 보드에서 확인해 주세요.' : '선택한 주제로 초안 생성을 시작했습니다.');
+    loadResearch();
+  } catch(e) {
+    toast(e.message);
+  }
+}
+async function cancelSessionById(sessionId, btn = null) {
+  if (!sessionId) return;
+  if (btn) { btn.disabled = true; btn.textContent = '중단 요청 중...'; }
+  try {
+    const res = await api('POST', `/api/sessions/${sessionId}/cancel`);
+    toast(res.status === 'cancel_requested' ? '생성 중단을 요청했습니다' : '이미 종료된 세션입니다');
+    loadResearch();
+  } catch(e) {
+    if (btn) { btn.disabled = false; btn.textContent = '중지'; }
+    toast(e.message);
+  }
+}
+async function deleteSessionById(sessionId) {
+  if (!sessionId) return;
+  if (!confirm('이 생성 세션과 연결된 초안을 삭제할까요? 생성 중이라면 현재 LLM 호출이 끝난 뒤 중단됩니다.')) return;
+  try {
+    await api('DELETE', `/api/sessions/${sessionId}`);
+    toast('세션을 삭제했습니다');
+    loadResearch();
+  } catch(e) {
+    toast(e.message);
+  }
+}
+(async function init() {
+  if (await requireAuth()) loadResearch();
+})();
+</script>
+</body>
+</html>

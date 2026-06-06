@@ -81,8 +81,8 @@
   tbody tr:last-child { border-bottom: none; }
   tbody tr:hover { background: #f5f7ff; }
   tbody td { padding: 13px 16px; font-size: 13px; vertical-align: middle; }
-  .td-title { font-weight: 600; max-width: 320px; white-space: nowrap;
-              overflow: hidden; text-overflow: ellipsis; }
+  .td-title { font-weight: 600; max-width: 320px; }
+  .td-title-main { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .td-meta  { color: #8899aa; font-size: 12px; }
 
   /* ── 배지 ── */
@@ -92,6 +92,10 @@
   .ch-badge.newsletter { background: #fce7f3; color: #db2777; }
   .ch-badge.youtube    { background: #fee2e2; color: #dc2626; }
   .ch-badge.shortform  { background: #f3f4f6; color: #374151; }
+  .source-badge { display: inline-block; margin-top: 6px; font-size: 11px; font-weight: 700;
+                  padding: 3px 9px; border-radius: 20px; }
+  .source-badge.manual { background: #eef2f8; color: #4d586d; }
+  .source-badge.research { background: #dcfce7; color: #15803d; }
 
   .st-badge { display: inline-block; font-size: 11px; font-weight: 700;
               padding: 3px 9px; border-radius: 20px; }
@@ -140,6 +144,8 @@
   <div class="sidebar-section">
     <div class="sidebar-label">Workspace</div>
     <a class="nav-item" href="/dashboard"><span class="nav-icon">▣</span> 대시보드</a>
+    <a class="nav-item" href="/generate"><span class="nav-icon">＋</span> 콘텐츠 생성</a>
+    <a class="nav-item" href="/auto-content"><span class="nav-icon">◎</span> 자동 콘텐츠 생성</a>
     <a class="nav-item active" href="/history"><span class="nav-icon">▤</span> 콘텐츠 이력</a>
     <a class="nav-item" href="/settings"><span class="nav-icon">⚙</span> 설정</a>
     <a class="nav-item" href="/onboarding"><span class="nav-icon">◌</span> 온보딩</a>
@@ -161,7 +167,7 @@
       <h1>콘텐츠 이력</h1>
       <p>생성·검수·발행된 모든 콘텐츠를 관리합니다</p>
     </div>
-    <a class="btn-add" href="/dashboard">+ 새 콘텐츠 생성</a>
+    <a class="btn-add" href="/generate">+ 콘텐츠 생성</a>
   </div>
 
   <div class="content">
@@ -323,8 +329,13 @@ function renderTable(drafts) {
   }
   tbody.innerHTML = drafts.map(d => {
     const [stLabel, stClass] = ST_INFO[d.status] || [d.status, 'review'];
+    const sourceType = d.source_type === 'research' ? 'research' : 'manual';
+    const sourceLabel = d.source_label || (sourceType === 'research' ? '자동 리서치' : '수동 생성');
     return `<tr data-id="${esc(d.id)}" data-ch="${esc(d.channel_type)}" data-title="${esc(d.title||'')}" data-url="${esc(d.published_url||'')}">
-      <td class="td-title">${esc(d.title || '(제목 없음)')}</td>
+      <td class="td-title">
+        <div class="td-title-main">${esc(d.title || '(제목 없음)')}</div>
+        <span class="source-badge ${sourceType}">${esc(sourceLabel)}</span>
+      </td>
       <td><span class="ch-badge ${esc(d.channel_type)}">${CH_LABEL[d.channel_type]||d.channel_type}</span></td>
       <td class="td-meta">${fmtDate(d.published_at || d.created_at)}</td>
       <td class="td-meta">${fmtMs(d.generation_ms)}</td>
