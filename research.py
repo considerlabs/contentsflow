@@ -1,14 +1,14 @@
 import asyncio
+import calendar
 import html
 import os
 import smtplib
 from datetime import datetime, time as dt_time, timedelta, timezone
 from email.message import EmailMessage
-from email.utils import parsedate_to_datetime
 from typing import Optional
 from urllib.parse import urlparse
-from xml.etree import ElementTree
 
+import feedparser
 import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -55,49 +55,6 @@ def _text(value: Optional[str]) -> str:
     return html.unescape((value or "").strip())
 
 
-def _local_name(tag: str) -> str:
-    return tag.rsplit("}", 1)[-1].lower()
-
-
-def _first_text(node: ElementTree.Element, names: tuple[str, ...]) -> str:
-    wanted = {name.lower() for name in names}
-    for child in node.iter():
-        if _local_name(child.tag) in wanted and child.text:
-            return _text(child.text)
-    return ""
-
-
-def _first_link(node: ElementTree.Element) -> str:
-    for child in node.iter():
-        if _local_name(child.tag) != "link":
-            continue
-        href = child.attrib.get("href")
-        if href:
-            return href.strip()
-        if child.text:
-            return child.text.strip()
-    return ""
-
-
-def _parse_date(value: str) -> Optional[datetime]:
-    if not value:
-        return None
-    try:
-        parsed = parsedate_to_datetime(value)
-        if parsed.tzinfo is None:
-            parsed = parsed.replace(tzinfo=timezone.utc)
-        return parsed
-    except Exception:
-        pass
-    try:
-        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-        if parsed.tzinfo is None:
-            parsed = parsed.replace(tzinfo=timezone.utc)
-        return parsed
-    except Exception:
-        return None
-
-
 def _strip_html(value: str) -> str:
     text = html.unescape(value or "")
     out = []
@@ -118,20 +75,29 @@ async def _fetch_rss(source: ResearchSource) -> list[dict]:
     async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
         res = await client.get(source.url)
         res.raise_for_status()
-    root = ElementTree.fromstring(res.content)
-    entries = [node for node in root.iter() if _local_name(node.tag) in {"item", "entry"}]
+    feed = feedparser.parse(res.content)
+    if not feed.entries:
+        content_type = res.headers.get("content-type", "")
+        if "html" in content_type.lower():
+            raise ValueError("RSS 피드 URL이 HTML 페이지를 반환했습니다. 설정에서 URL을 확인해 주세요.")
     items = []
-    for entry in entries[:MAX_ITEMS_PER_SOURCE]:
-        title = _first_text(entry, ("title",))
-        link = _first_link(entry)
-        summary = _first_text(entry, ("description", "summary", "content", "encoded"))
-        published = _parse_date(_first_text(entry, ("pubDate", "published", "updated", "dc:date")))
+    for entry in feed.entries[:MAX_ITEMS_PER_SOURCE]:
+        title = _text(entry.get("title", ""))
         if not title:
             continue
+        link = entry.get("link", "")
+        raw_summary = (
+            entry.get("summary", "")
+            or (entry.get("content") or [{}])[0].get("value", "")
+        )
+        published: Optional[datetime] = None
+        parsed_time = entry.get("published_parsed") or entry.get("updated_parsed")
+        if parsed_time:
+            published = datetime.fromtimestamp(calendar.timegm(parsed_time), tz=timezone.utc)
         items.append({
             "title": title,
             "url": link,
-            "summary": _strip_html(summary)[:700],
+            "summary": _strip_html(raw_summary)[:700],
             "published_at": published,
             "source": source.name,
             "raw": {"source_url": source.url},

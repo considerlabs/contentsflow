@@ -257,6 +257,14 @@ function stopElapsedTimer() {
 }
 
 // ── 진행률 내부 HTML ──
+const STEP_DESC = {
+  source_package: '공통 기획 패키지 준비 중',
+  blog: '블로그 초안 작성 중',
+  newsletter: '뉴스레터 초안 작성 중',
+  youtube: '유튜브 스크립트 작성 중',
+  shortform: '숏폼 대본 작성 중',
+};
+
 function renderProposalProgress(proposal) {
   const status = proposalEffectiveStatus(proposal);
   if (!proposal.session_id) return '';
@@ -264,25 +272,27 @@ function renderProposalProgress(proposal) {
   const total = proposal.generation_total || (proposal.channels || []).length || 4;
   const pct = total ? Math.min(100, Math.round((done / total) * 100)) : 0;
   const current = proposal.generation_current_channel;
-  const currentLabel = current === 'source_package' ? '원본 기획 패키지' : (current ? channelLabel(current) : statusLabel(status));
+  const isActive = status === 'generating' || status === 'cancel_requested';
+  const stepDesc = current
+    ? (STEP_DESC[current] || channelLabel(current) + ' 작성 중')
+    : statusLabel(status);
 
-  // 서버 제공 시작 시각 또는 클라이언트 최초 관측 시각
   if (proposal.session_created_at && !sessionStartTimes[proposal.session_id]) {
     sessionStartTimes[proposal.session_id] = new Date(proposal.session_created_at).getTime();
   }
   const startTs = sessionStartTimes[proposal.session_id] || 0;
-  const isActive = status === 'generating' || status === 'cancel_requested';
   const timerHtml = (startTs && isActive)
     ? `<span style="font-weight:800;color:var(--primary);font-variant-numeric:tabular-nums" data-session-start="${startTs}">0:00</span>`
     : '';
 
   return `
     <div class="proposal-progress">
-      <div class="evidence-item" style="display:flex;justify-content:space-between;align-items:center">
-        <span>${esc(statusLabel(status))} · ${done}/${total} · ${esc(currentLabel)}</span>
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:12px;font-weight:800;color:${isActive ? 'var(--primary)' : '#8b96aa'}">${esc(stepDesc)}</span>
         ${timerHtml}
       </div>
-      <div class="proposal-progress-line"><div class="proposal-progress-fill" style="width:${pct}%"></div></div>
+      <div style="font-size:11px;color:#9aa4b6;margin-top:2px">${done} / ${total} 채널 완료</div>
+      <div class="proposal-progress-line" style="margin-top:6px"><div class="proposal-progress-fill" style="width:${pct}%"></div></div>
     </div>`;
 }
 
@@ -375,29 +385,35 @@ async function loadResearch(silent = false) {
     const run = data.run;
 
     if (run.status === 'collecting') {
+      const collectStartTs = run.started_at ? new Date(run.started_at).getTime() : 0;
       if (!silent) {
         body.innerHTML = `
           <div class="status-box">
             <div class="status-text"><span class="spinner"></span>자료 수집 및 주제화 진행 중</div>
-            <div class="status-sub">로컬 LLM이 수집 자료를 분석하고 있습니다.</div>
+            <div class="status-sub">
+              RSS 수집 → LLM 분석 → 주제 5개 생성 순으로 진행됩니다.
+              ${collectStartTs ? `<span style="display:block;margin-top:8px">경과 시간 <span style="font-weight:900;color:var(--primary);font-variant-numeric:tabular-nums" data-session-start="${collectStartTs}">0:00</span></span>` : ''}
+            </div>
           </div>`;
       }
+      startElapsedTimer();
       researchRefreshTimer = setTimeout(() => loadResearch(true), 5000);
       return;
     }
 
     if (run.status === 'failed') {
-      if (!silent) {
-        body.innerHTML = `
-          <div class="status-box" style="background:#fef2f2;border-color:#fecaca">
-            <div class="status-text" style="color:#dc2626">리서치 실패</div>
-            <div class="status-sub">${esc(run.error_message || '오류 메시지가 없습니다.')}</div>
-          </div>
-          <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
-            <button class="btn-primary" onclick="runMorningResearch()">다시 수집</button>
-            <a href="/settings#research-sources"><button class="btn-ghost">소스 확인</button></a>
-          </div>`;
-      }
+      // silent 여부 무관 — 실패는 즉시 표시 (silent=true 시 숨기면 수집 중 박스가 그대로 남아
+      // 사용자가 다른 페이지 갔다 돌아올 때까지 오류를 인지하지 못함)
+      stopElapsedTimer();
+      body.innerHTML = `
+        <div class="status-box" style="background:#fef2f2;border-color:#fecaca">
+          <div class="status-text" style="color:#dc2626">리서치 실패</div>
+          <div class="status-sub">${esc(run.error_message || '오류 메시지가 없습니다.')}</div>
+        </div>
+        <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn-primary" onclick="runMorningResearch()">다시 수집</button>
+          <a href="/settings#research-sources"><button class="btn-ghost">소스 확인</button></a>
+        </div>`;
       return;
     }
 
@@ -445,7 +461,9 @@ async function loadResearch(silent = false) {
     }
 
   } catch(e) {
-    if (!silent) {
+    // 페이지 이동·bfcache 복원으로 인한 fetch 중단은 에러로 표시하지 않음
+    const isAbort = e.name === 'AbortError' || e.message === 'Failed to fetch';
+    if (!silent && !isAbort) {
       body.innerHTML = `<div class="empty">리서치 로드 실패: ${esc(e.message)}</div>`;
     }
   }
@@ -453,16 +471,22 @@ async function loadResearch(silent = false) {
 
 async function runMorningResearch() {
   const body = document.getElementById('research-body');
+  const clientStartTs = Date.now();
   body.innerHTML = `
     <div class="status-box">
       <div class="status-text"><span class="spinner"></span>자료 수집을 시작했습니다</div>
-      <div class="status-sub">RSS/사이트 수집 후 주제 5개를 생성합니다.</div>
+      <div class="status-sub">
+        RSS 수집 → LLM 분석 → 주제 5개 생성 순으로 진행됩니다.
+        <span style="display:block;margin-top:8px">경과 시간 <span style="font-weight:900;color:var(--primary);font-variant-numeric:tabular-nums" data-session-start="${clientStartTs}">0:00</span></span>
+      </div>
     </div>`;
+  startElapsedTimer();
   proposalOrder = [];
   try {
     await api('POST', '/api/research/run');
     researchRefreshTimer = setTimeout(() => loadResearch(true), 5000);
   } catch(e) {
+    stopElapsedTimer();
     body.innerHTML = `<div class="empty">수집 시작 실패: ${esc(e.message)}</div>`;
   }
 }
@@ -578,6 +602,22 @@ async function deleteSessionById(sessionId) {
     toast(e.message);
   }
 }
+
+// bfcache(뒤로가기 캐시) 복원 및 페이지 이탈 처리
+window.addEventListener('pagehide', function () {
+  clearTimeout(researchRefreshTimer);
+  stopElapsedTimer();
+});
+
+window.addEventListener('pageshow', function (event) {
+  if (event.persisted) {
+    // bfcache에서 복원 — 상태 초기화 후 재로드
+    proposalOrder = [];
+    clearTimeout(researchRefreshTimer);
+    stopElapsedTimer();
+    loadResearch(false);
+  }
+});
 
 (async function init() {
   if (await requireAuth()) loadResearch();
